@@ -1,0 +1,33 @@
+[package]
+name = "advent-of-code-2024"
+version = "0.1.0"
+authors = ["bram-inniger"]
+edition = "2021"
+description = "Repository to store solutions for Advent of Code"
+readme = "README.md"
+homepage = "https://inniger.be"
+repository = "https://github.com/bram-inniger/advent-of-code-2024"
+license = " GPL-3.0-or-later"
+keywords = ["advent-of-code"]
+categories = ["algorithms", "data-structures", "mathematics"]
+
+[dependencies]
+chrono = "0.4.38"
+hex = "0.4.3"
+indexmap = "2.7.0"
+itertools = "0.13.0"
+lazy_static = "1.5.0"
+md-5 = "0.11.0-pre.4"
+radix-heap = "0.4.2"
+rand = "0.9.0-beta.1"
+rayon = "1.10.0"
+regex = "1.11.1"
+rustc-hash = "2.1.0"
+serde_json = "1.0.133"
+
+[dev-dependencies]
+criterion = { version = "0.5.1", features = ["html_reports"] }
+
+[[bench]]
+name = "day_01_bench"
+harness = false
