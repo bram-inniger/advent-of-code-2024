@@ -96,7 +96,6 @@ fn write_file(config: &Config, path: &str, content: &str) -> Result<(), Box<dyn 
 
 fn append_file(path: &str, content: &str) -> Result<(), Box<dyn Error>> {
     File::options()
-        .write(true)
         .append(true)
         .open(path)?
         .write_all(content.as_ref())?;
@@ -105,10 +104,6 @@ fn append_file(path: &str, content: &str) -> Result<(), Box<dyn Error>> {
 }
 
 const TEMPLATE: &str = "\
-// use std::str::FromStr;
-
-// use regex::Regex;
-
 pub fn solve_1(X: &[&str]) -> u32 {
     42
 }
