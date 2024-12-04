@@ -5,8 +5,17 @@ pub fn solve_1(word_search: &[&str]) -> usize {
 
     (0..word_search.height)
         .flat_map(|y| (0..word_search.width).map(move |x| (x, y)))
-        .map(|(x, y)| word_search.xmas_at(x, y))
+        .map(|(x, y)| word_search.nr_xmas_at(x, y))
         .sum()
+}
+
+pub fn solve_2(word_search: &[&str]) -> usize {
+    let word_search = WordSearch::new(word_search);
+
+    (1..word_search.height - 1)
+        .flat_map(|y| (1..word_search.width - 1).map(move |x| (x, y)))
+        .filter(|&(x, y)| word_search.is_x_mas_at(x, y))
+        .count()
 }
 
 #[derive(Debug)]
@@ -32,7 +41,7 @@ impl WordSearch {
         }
     }
 
-    fn xmas_at(&self, x: usize, y: usize) -> usize {
+    fn nr_xmas_at(&self, x: usize, y: usize) -> usize {
         let is_xmas = |delta: &dyn Fn(i32) -> Delta| {
             (0..4)
                 .map(|idx| {
@@ -56,6 +65,14 @@ impl WordSearch {
         .iter()
         .filter(|&&b| b)
         .count()
+    }
+
+    fn is_x_mas_at(&self, x: usize, y: usize) -> bool {
+        self.grid[y][x] == 'A'
+            && ((self.grid[y - 1][x - 1] == 'M' && self.grid[y + 1][x + 1] == 'S')
+                || (self.grid[y - 1][x - 1] == 'S' && self.grid[y + 1][x + 1] == 'M'))
+            && ((self.grid[y - 1][x + 1] == 'M' && self.grid[y + 1][x - 1] == 'S')
+                || (self.grid[y - 1][x + 1] == 'S' && self.grid[y + 1][x - 1] == 'M'))
     }
 }
 
@@ -102,5 +119,32 @@ mod tests {
             .collect_vec();
 
         assert_eq!(2_458, solve_1(&input));
+    }
+
+    #[test]
+    fn day_04_part_02_sample() {
+        let sample = vec![
+            "MMMSXXMASM",
+            "MSAMXMSMSA",
+            "AMXSXMAAMM",
+            "MSAMASMSMX",
+            "XMASAMXAMM",
+            "XXAMMXXAMA",
+            "SMSMSASXSS",
+            "SAXAMASAAA",
+            "MAMMMXMMMM",
+            "MXMXAXMASX",
+        ];
+
+        assert_eq!(9, solve_2(&sample));
+    }
+
+    #[test]
+    fn day_04_part_02_solution() {
+        let input = include_str!("../../inputs/day_04.txt")
+            .lines()
+            .collect_vec();
+
+        assert_eq!(1_945, solve_2(&input));
     }
 }
