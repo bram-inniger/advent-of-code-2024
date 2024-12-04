@@ -1,7 +1,19 @@
-use itertools::Itertools;
 use regex::Regex;
 
 pub fn solve_1(memory: &str) -> u32 {
+    solve(memory)
+}
+
+pub fn solve_2(memory: &str) -> u32 {
+    Regex::new(r"(?s)do\(\)(.*?)don't\(\)")
+        .unwrap()
+        .find_iter(&format!("do(){memory}don't()"))
+        .map(|m| m.as_str())
+        .map(solve)
+        .sum()
+}
+
+fn solve(memory: &str) -> u32 {
     Regex::new(r"mul\((?<a>\d{1,3}),(?<b>\d{1,3})\)")
         .unwrap()
         .captures_iter(memory)
@@ -11,36 +23,6 @@ pub fn solve_1(memory: &str) -> u32 {
             a * b
         })
         .sum()
-}
-
-pub fn solve_2(memory: &str) -> u32 {
-    let re_mul = Regex::new(r"mul\((?<a>\d{1,3}),(?<b>\d{1,3})\)").unwrap();
-    let instructions = Regex::new(r"do\(\)|don't\(\)|mul\(\d{1,3},\d{1,3}\)")
-        .unwrap()
-        .find_iter(memory)
-        .map(|m| m.as_str())
-        .collect_vec();
-
-    let mut sum = 0;
-    let mut enabled = true;
-
-    for instruction in instructions {
-        match instruction {
-            "do()" => enabled = true,
-            "don't()" => enabled = false,
-            _ => {
-                if enabled {
-                    let caps = re_mul.captures(instruction).unwrap();
-                    let a = caps.name("a").unwrap().as_str().parse::<u32>().unwrap();
-                    let b = caps.name("b").unwrap().as_str().parse::<u32>().unwrap();
-
-                    sum += a * b;
-                }
-            }
-        }
-    }
-
-    sum
 }
 
 #[cfg(test)]
