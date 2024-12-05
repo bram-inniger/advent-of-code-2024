@@ -1,7 +1,16 @@
 use itertools::Itertools;
+use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 
 pub fn solve_1(manual: &str) -> u32 {
+    solve(manual, true)
+}
+
+pub fn solve_2(manual: &str) -> u32 {
+    solve(manual, false)
+}
+
+fn solve(manual: &str, valid: bool) -> u32 {
     let [rules, updates] = manual.split("\n\n").collect_vec()[..] else {
         panic!("Expected two parts but got {}", manual);
     };
@@ -11,12 +20,13 @@ pub fn solve_1(manual: &str) -> u32 {
 
     updates
         .iter()
-        .filter(|&update| is_valid(update, &rules))
-        .map(|update| update[update.len() / 2])
+        .map(|update| Update::new(update, &rules))
+        .filter(|update| update.is_valid() == valid)
+        .map(|update| update.middle_page())
         .sum()
 }
 
-fn parse_rules(rules: &str) -> HashMap<u32, Vec<u32>> {
+fn parse_rules(rules: &str) -> HashMap<u32, HashSet<u32>> {
     rules
         .split('\n')
         .map(|rule| {
@@ -48,23 +58,39 @@ fn parse_updates(updates: &str) -> Vec<Vec<u32>> {
         .collect()
 }
 
-fn is_valid(update: &[u32], rules: &HashMap<u32, Vec<u32>>) -> bool {
-    let mut seen: HashSet<u32> = HashSet::new();
+#[derive(Debug)]
+struct Update {
+    pages: Vec<u32>,
+    sorted: Vec<u32>,
+}
 
-    for page in update {
-        if rules
-            .get(page)
-            .unwrap_or(&vec![])
+impl Update {
+    fn new(update: &[u32], rules: &HashMap<u32, HashSet<u32>>) -> Self {
+        let pages = update.to_vec();
+        let sorted = update
             .iter()
-            .any(|after| seen.contains(after))
-        {
-            return false;
-        }
+            .copied()
+            .sorted_by(|l, r| {
+                if rules.get(l).unwrap_or(&HashSet::new()).contains(r) {
+                    Ordering::Less
+                } else if rules.get(r).unwrap_or(&HashSet::new()).contains(l) {
+                    Ordering::Greater
+                } else {
+                    Ordering::Equal
+                }
+            })
+            .collect();
 
-        seen.insert(*page);
+        Self { pages, sorted }
     }
 
-    true
+    fn is_valid(&self) -> bool {
+        self.pages == self.sorted
+    }
+
+    fn middle_page(&self) -> u32 {
+        self.sorted[self.sorted.len() / 2]
+    }
 }
 
 #[cfg(test)]
@@ -112,5 +138,48 @@ mod tests {
         let input = include_str!("../../inputs/day_05.txt").trim();
 
         assert_eq!(6_034, solve_1(input));
+    }
+
+    #[test]
+    fn day_05_part_02_sample() {
+        let sample = "\
+                47|53\n\
+                97|13\n\
+                97|61\n\
+                97|47\n\
+                75|29\n\
+                61|13\n\
+                75|53\n\
+                29|13\n\
+                97|29\n\
+                53|29\n\
+                61|53\n\
+                97|53\n\
+                61|29\n\
+                47|13\n\
+                75|47\n\
+                97|75\n\
+                47|61\n\
+                75|61\n\
+                47|29\n\
+                75|13\n\
+                53|13\n\
+                \n\
+                75,47,61,53,29\n\
+                97,61,53,29,13\n\
+                75,29,13\n\
+                75,97,47,61,53\n\
+                61,13,29\n\
+                97,13,75,29,47\
+            ";
+
+        assert_eq!(123, solve_2(sample));
+    }
+
+    #[test]
+    fn day_05_part_02_solution() {
+        let input = include_str!("../../inputs/day_05.txt").trim();
+
+        assert_eq!(6_305, solve_2(input));
     }
 }
