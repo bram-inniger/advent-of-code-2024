@@ -1,16 +1,34 @@
 use itertools::Itertools;
 use std::collections::HashSet;
+use std::ops::Not;
 
 pub fn solve_1(map: &[&str]) -> usize {
-    Map::new(map).walk()
+    let (guards, _) = Map::new(map).walk();
+    guards.iter().map(|guard| guard.coordinate).unique().count()
 }
 
-#[derive(Debug)]
+pub fn solve_2(map: &[&str]) -> usize {
+    let map = Map::new(map);
+
+    (0..map.height)
+        .flat_map(|y| (0..map.width).map(move |x| Coordinate { x, y }))
+        .filter(|c| map.obstructions.contains(c).not() && &map.guard.coordinate != c)
+        .map(|c| {
+            let mut map = map.clone();
+            map.obstructions.insert(c);
+            map
+        })
+        .map(|map| map.walk().1)
+        .filter(|&s| s == Status::Looping)
+        .count()
+}
+
+#[derive(Debug, Clone)]
 struct Map {
     obstructions: HashSet<Coordinate>,
     width: i32,
     height: i32,
-    guard: Coordinate,
+    guard: Guard,
 }
 
 impl Map {
@@ -33,11 +51,14 @@ impl Map {
             .filter(|(_, c)| *c == '#')
             .map(|(coordinate, _)| *coordinate)
             .collect();
-        let guard = map
-            .iter()
-            .find(|(_, c)| *c == '^')
-            .map(|(coordinate, _)| *coordinate)
-            .unwrap();
+        let guard = Guard {
+            coordinate: map
+                .iter()
+                .find(|(_, c)| *c == '^')
+                .map(|(coordinate, _)| *coordinate)
+                .unwrap(),
+            direction: Direction::Up,
+        };
 
         Self {
             obstructions,
@@ -47,24 +68,36 @@ impl Map {
         }
     }
 
-    fn walk(&self) -> usize {
+    fn walk(&self) -> (HashSet<Guard>, Status) {
         let mut guard = self.guard;
-        let mut direction = Direction::Up;
         let mut visited = HashSet::new();
 
-        while (0..self.width).contains(&guard.x) && (0..self.height).contains(&guard.y) {
-            visited.insert(guard);
-            let next = direction.step(&guard);
+        loop {
+            if visited.contains(&guard) {
+                return (visited, Status::Looping);
+            }
+            if (0..self.width).contains(&guard.coordinate.x).not()
+                || (0..self.height).contains(&guard.coordinate.y).not()
+            {
+                return (visited, Status::Finished);
+            }
 
-            if self.obstructions.contains(&next) {
-                direction = direction.turn();
+            visited.insert(guard);
+            let next_coordinate = guard.direction.step(&guard.coordinate);
+
+            if self.obstructions.contains(&next_coordinate) {
+                guard.direction = guard.direction.turn();
             } else {
-                guard = next;
+                guard.coordinate = next_coordinate;
             }
         }
-
-        visited.len()
     }
+}
+
+#[derive(Debug, Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Hash)]
+struct Guard {
+    coordinate: Coordinate,
+    direction: Direction,
 }
 
 #[derive(Debug, Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Hash)]
@@ -113,6 +146,12 @@ impl Direction {
     }
 }
 
+#[derive(Debug, Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Hash)]
+enum Status {
+    Finished,
+    Looping,
+}
+
 #[cfg(test)]
 mod tests {
     use itertools::Itertools;
@@ -144,5 +183,32 @@ mod tests {
             .collect_vec();
 
         assert_eq!(4_515, solve_1(&input));
+    }
+
+    #[test]
+    fn day_06_part_02_sample() {
+        let sample = vec![
+            "....#.....",
+            ".........#",
+            "..........",
+            "..#.......",
+            ".......#..",
+            "..........",
+            ".#..^.....",
+            "........#.",
+            "#.........",
+            "......#...",
+        ];
+
+        assert_eq!(6, solve_2(&sample));
+    }
+
+    #[test]
+    fn day_06_part_02_solution() {
+        let input = include_str!("../../inputs/day_06.txt")
+            .lines()
+            .collect_vec();
+
+        assert_eq!(1_309, solve_2(&input));
     }
 }
