@@ -1,5 +1,7 @@
 use itertools::Itertools;
-use std::collections::HashSet;
+use rayon::iter::IntoParallelRefIterator;
+use rayon::iter::ParallelIterator;
+use rustc_hash::FxHashSet;
 use std::ops::Not;
 
 pub fn solve_1(map: &[&str]) -> usize {
@@ -9,13 +11,19 @@ pub fn solve_1(map: &[&str]) -> usize {
 
 pub fn solve_2(map: &[&str]) -> usize {
     let map = Map::new(map);
+    let (guards, _) = map.walk();
+    let original_path: FxHashSet<_> = guards
+        .iter()
+        .map(|guard| guard.coordinate)
+        .unique()
+        .filter(|c| &map.guard.coordinate != c)
+        .collect();
 
-    (0..map.height)
-        .flat_map(|y| (0..map.width).map(move |x| Coordinate { x, y }))
-        .filter(|c| map.obstructions.contains(c).not() && &map.guard.coordinate != c)
+    original_path
+        .par_iter()
         .map(|c| {
             let mut map = map.clone();
-            map.obstructions.insert(c);
+            map.obstructions.insert(*c);
             map
         })
         .map(|map| map.walk().1)
@@ -25,7 +33,7 @@ pub fn solve_2(map: &[&str]) -> usize {
 
 #[derive(Debug, Clone)]
 struct Map {
-    obstructions: HashSet<Coordinate>,
+    obstructions: FxHashSet<Coordinate>,
     width: i32,
     height: i32,
     guard: Guard,
@@ -68,9 +76,9 @@ impl Map {
         }
     }
 
-    fn walk(&self) -> (HashSet<Guard>, Status) {
+    fn walk(&self) -> (FxHashSet<Guard>, Status) {
         let mut guard = self.guard;
-        let mut visited = HashSet::new();
+        let mut visited = FxHashSet::default();
 
         loop {
             if visited.contains(&guard) {
