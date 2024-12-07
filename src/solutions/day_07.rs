@@ -20,6 +20,7 @@ fn solve(calibrations: &[&str], concat: bool) -> u64 {
 struct Calibration {
     test_value: u64,
     equation_values: Vec<u64>,
+    equation_lengths: Vec<u64>,
     concat: bool,
 }
 
@@ -30,14 +31,22 @@ impl Calibration {
         };
 
         let test_value = test_value.parse::<u64>().unwrap();
-        let equation_values = equation_values
-            .split(' ')
+        let equation_values_str = equation_values.split(' ').collect_vec();
+
+        let equation_values = equation_values_str
+            .iter()
             .map(|s| s.parse::<u64>().unwrap())
+            .collect();
+        let equation_lengths = equation_values_str
+            .iter()
+            .map(|s| s.len() as u32)
+            .map(|nr_digits| 10u64.pow(nr_digits))
             .collect();
 
         Self {
             test_value,
             equation_values,
+            equation_lengths,
             concat,
         }
     }
@@ -54,7 +63,7 @@ impl Calibration {
                 vec![
                     acc + self.equation_values[idx],
                     acc * self.equation_values[idx],
-                    Self::concat(acc, self.equation_values[idx]),
+                    acc * self.equation_lengths[idx] + self.equation_values[idx],
                 ]
             } else {
                 vec![
@@ -67,18 +76,6 @@ impl Calibration {
                 .iter()
                 .any(|new_acc| self.can_solve_helper(idx + 1, *new_acc))
         }
-    }
-
-    fn concat(l: u64, r: u64) -> u64 {
-        let mut l_cpy = l;
-        let mut r_cpy = r;
-
-        while r_cpy > 0 {
-            r_cpy /= 10;
-            l_cpy *= 10;
-        }
-
-        l_cpy + r
     }
 }
 
