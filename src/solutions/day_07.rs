@@ -59,22 +59,13 @@ impl Calibration {
         if idx == self.equation_values.len() {
             acc == self.test_value
         } else {
-            let results = if self.concat {
-                vec![
-                    acc + self.equation_values[idx],
-                    acc * self.equation_values[idx],
-                    acc * self.equation_lengths[idx] + self.equation_values[idx],
-                ]
-            } else {
-                vec![
-                    acc + self.equation_values[idx],
-                    acc * self.equation_values[idx],
-                ]
-            };
-
-            results
-                .iter()
-                .any(|new_acc| self.can_solve_helper(idx + 1, *new_acc))
+            self.can_solve_helper(idx + 1, acc + self.equation_values[idx])
+                || self.can_solve_helper(idx + 1, acc * self.equation_values[idx])
+                || (self.concat
+                    && self.can_solve_helper(
+                        idx + 1,
+                        acc * self.equation_lengths[idx] + self.equation_values[idx],
+                    ))
         }
     }
 }
