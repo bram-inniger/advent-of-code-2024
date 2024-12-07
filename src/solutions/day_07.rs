@@ -1,5 +1,4 @@
 use itertools::Itertools;
-use std::iter;
 
 pub fn solve_1(calibrations: &[&str]) -> u64 {
     solve(calibrations, false)
@@ -12,8 +11,8 @@ pub fn solve_2(calibrations: &[&str]) -> u64 {
 fn solve(calibrations: &[&str], concat: bool) -> u64 {
     calibrations
         .iter()
-        .map(|c| Calibration::new(c))
-        .filter(|c| c.can_solve(concat))
+        .map(|c| Calibration::new(c, concat))
+        .filter(|c| c.can_solve())
         .map(|c| c.test_value)
         .sum()
 }
@@ -21,10 +20,11 @@ fn solve(calibrations: &[&str], concat: bool) -> u64 {
 struct Calibration {
     test_value: u64,
     equation_values: Vec<u64>,
+    concat: bool,
 }
 
 impl Calibration {
-    fn new(calibration: &str) -> Self {
+    fn new(calibration: &str, concat: bool) -> Self {
         let [test_value, equation_values] = calibration.split(": ").collect_vec()[..] else {
             panic!("Expected two parts but got {}", calibration);
         };
@@ -38,47 +38,35 @@ impl Calibration {
         Self {
             test_value,
             equation_values,
+            concat,
         }
     }
 
-    fn can_solve(&self, concat: bool) -> bool {
-        Self::can_solve_helper(&self.equation_values, concat)
-            .iter()
-            .any(|&equation_result| equation_result == self.test_value)
+    fn can_solve(&self) -> bool {
+        self.can_solve_helper(1, self.equation_values[0])
     }
 
-    fn can_solve_helper(equation_values: &[u64], concat: bool) -> Vec<u64> {
-        if equation_values.len() == 1 {
-            return equation_values.to_vec();
-        }
-
-        let add = {
-            let new_equation_values = iter::once(equation_values[0] + equation_values[1])
-                .chain(equation_values.iter().skip(2).copied())
-                .collect_vec();
-            Self::can_solve_helper(&new_equation_values, concat)
-        };
-
-        let multiply = {
-            let new_equation_values = iter::once(equation_values[0] * equation_values[1])
-                .chain(equation_values.iter().skip(2).copied())
-                .collect_vec();
-            Self::can_solve_helper(&new_equation_values, concat)
-        };
-
-        let concatenation = {
-            if concat {
-                let new_equation_values =
-                    iter::once(Self::concat(equation_values[0], equation_values[1]))
-                        .chain(equation_values.iter().skip(2).copied())
-                        .collect_vec();
-                Self::can_solve_helper(&new_equation_values, concat)
+    fn can_solve_helper(&self, idx: usize, acc: u64) -> bool {
+        if idx == self.equation_values.len() {
+            acc == self.test_value
+        } else {
+            let results = if self.concat {
+                vec![
+                    acc + self.equation_values[idx],
+                    acc * self.equation_values[idx],
+                    Self::concat(acc, self.equation_values[idx]),
+                ]
             } else {
-                vec![]
-            }
-        };
+                vec![
+                    acc + self.equation_values[idx],
+                    acc * self.equation_values[idx],
+                ]
+            };
 
-        [add, multiply, concatenation].concat()
+            results
+                .iter()
+                .any(|new_acc| self.can_solve_helper(idx + 1, *new_acc))
+        }
     }
 
     fn concat(l: u64, r: u64) -> u64 {
