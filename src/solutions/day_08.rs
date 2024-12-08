@@ -2,7 +2,11 @@ use itertools::Itertools;
 use std::collections::{HashMap, HashSet};
 
 pub fn solve_1(map: &[&str]) -> usize {
-    Map::new(map).antinodes().len()
+    Map::new(map).antinodes(false).len()
+}
+
+pub fn solve_2(map: &[&str]) -> usize {
+    Map::new(map).antinodes(true).len()
 }
 
 #[derive(Debug)]
@@ -40,7 +44,7 @@ impl Map {
         }
     }
 
-    fn antinodes(&self) -> HashSet<Location> {
+    fn antinodes(&self, harmonics: bool) -> HashSet<Location> {
         self.antennas
             .values()
             .flat_map(|antenna| {
@@ -48,23 +52,26 @@ impl Map {
                     .flat_map(move |i| {
                         ((i + 1)..antenna.len()).map(move |j| (antenna[i], antenna[j]))
                     })
-                    .flat_map(|(l1, l2)| Self::antinodes_per_pair(l1, l2))
+                    .flat_map(|(l1, l2)| self.antinodes_per_pair(l1, l2, harmonics))
             })
-            .filter(|&Location { x, y }| x >= 0 && x < self.width && y >= 0 && y < self.height)
             .collect()
     }
 
-    fn antinodes_per_pair(l1: Location, l2: Location) -> Vec<Location> {
-        vec![
-            Location {
-                x: 2 * l1.x - l2.x,
-                y: 2 * l1.y - l2.y,
-            },
-            Location {
-                x: 2 * l2.x - l1.x,
-                y: 2 * l2.y - l1.y,
-            },
+    fn antinodes_per_pair(&self, l1: Location, l2: Location, harmonics: bool) -> Vec<Location> {
+        [
+            (l1, l1.x - l2.x, l1.y - l2.y),
+            (l2, l2.x - l1.x, l2.y - l1.y),
         ]
+        .iter()
+        .flat_map(|(antinode, dx, dy)| {
+            (if harmonics { 0..i32::MAX } else { 1..2 })
+                .map(move |i| Location {
+                    x: antinode.x + i * dx,
+                    y: antinode.y + i * dy,
+                })
+                .take_while(|l| l.is_in_bounds(self))
+        })
+        .collect()
     }
 }
 
@@ -72,6 +79,12 @@ impl Map {
 struct Location {
     x: i32,
     y: i32,
+}
+
+impl Location {
+    fn is_in_bounds(&self, map: &Map) -> bool {
+        self.x >= 0 && self.x < map.width && self.y >= 0 && self.y < map.height
+    }
 }
 
 #[cfg(test)]
@@ -107,5 +120,34 @@ mod tests {
             .collect_vec();
 
         assert_eq!(269, solve_1(&input));
+    }
+
+    #[test]
+    fn day_08_part_02_sample() {
+        let sample = vec![
+            "............",
+            "........0...",
+            ".....0......",
+            ".......0....",
+            "....0.......",
+            "......A.....",
+            "............",
+            "............",
+            "........A...",
+            ".........A..",
+            "............",
+            "............",
+        ];
+
+        assert_eq!(34, solve_2(&sample));
+    }
+
+    #[test]
+    fn day_08_part_02_solution() {
+        let input = include_str!("../../inputs/day_08.txt")
+            .lines()
+            .collect_vec();
+
+        assert_eq!(949, solve_2(&input));
     }
 }
