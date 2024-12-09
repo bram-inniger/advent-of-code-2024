@@ -1,8 +1,9 @@
+use itertools::Itertools;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
-pub fn solve_1(disk_map: &str) -> u64 {
-    let mut disk: Vec<_> = disk_map
+pub fn solve_1(disk: &str) -> u64 {
+    let mut disk: Vec<_> = disk
         .chars()
         .map(|c| c.to_digit(10).unwrap())
         .enumerate()
@@ -34,43 +35,44 @@ pub fn solve_1(disk_map: &str) -> u64 {
     }
 }
 
-pub fn solve_2(disk_map: &str) -> u64 {
+pub fn solve_2(disk: &str) -> u64 {
     let mut files: Vec<Block> = Vec::new();
-    let mut spaces: Vec<Block> = Vec::new();
     let mut file = true;
-    let mut id = 0;
     let mut idx = 0;
+    let mut spaces = (0..10).map(|_| BinaryHeap::<Block>::new()).collect_vec();
 
-    for d in disk_map.chars().map(|c| c.to_digit(10).unwrap() as usize) {
+    for (id, d) in disk
+        .chars()
+        .enumerate()
+        .map(|(id, c)| (id as u64 / 2, c.to_digit(10).unwrap() as usize))
+    {
         if file {
             let file = Block { idx, len: d, id };
-
             files.push(file);
-            id += 1;
         } else {
             let space = Block { idx, len: d, id: 0 };
-
-            spaces.push(space);
+            spaces[space.len].push(space);
         }
 
         idx += d;
         file = !file;
     }
 
-    let mut pq = BinaryHeap::new();
-    files.iter().for_each(|&f| pq.push(f));
-
-    println!("{:?}", pq.pop());
-
     for file in files.iter_mut().rev() {
-        if let Some(space) = spaces
-            .iter_mut()
-            .take_while(|s| s.idx < file.idx)
-            .find(|s| s.len >= file.len)
-        {
+        let first_space = (file.len..10)
+            .flat_map(|idx| spaces[idx].peek().map(|x| (idx, *x)))
+            .sorted_by_key(|&(_, b)| b)
+            .next_back()
+            .filter(|(_, space)| space.idx < file.idx);
+
+        if let Some((idx, _)) = first_space {
+            let mut space = spaces[idx].pop().unwrap();
+
             file.idx = space.idx;
             space.idx += file.len;
             space.len -= file.len;
+
+            spaces[space.len].push(space);
         }
     }
 
@@ -90,8 +92,7 @@ struct Block {
 
 impl Ord for Block {
     fn cmp(&self, other: &Self) -> Ordering {
-        // self.idx.cmp(&other.idx).reverse()
-        other.idx.cmp(&self.idx)
+        self.idx.cmp(&other.idx).reverse()
     }
 }
 
