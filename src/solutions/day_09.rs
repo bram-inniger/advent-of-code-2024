@@ -82,7 +82,6 @@ pub fn solve_2(disk: &str) -> u64 {
         .sum()
 }
 
-// improvement idea, make enum for "File" and "Empty" ?
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 struct Block {
     idx: usize,
