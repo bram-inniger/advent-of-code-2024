@@ -1,3 +1,6 @@
+use std::cmp::Ordering;
+use std::collections::BinaryHeap;
+
 pub fn solve_1(disk_map: &str) -> u64 {
     let mut disk: Vec<u64> = vec![];
     let mut file = true;
@@ -62,6 +65,11 @@ pub fn solve_2(disk_map: &str) -> u64 {
         file = !file;
     }
 
+    let mut pq = BinaryHeap::new();
+    files.iter().for_each(|&f| pq.push(f));
+
+    println!("{:?}", pq.pop());
+
     for file in files.iter_mut().rev() {
         if let Some(space) = spaces
             .iter_mut()
@@ -81,11 +89,24 @@ pub fn solve_2(disk_map: &str) -> u64 {
 }
 
 // improvement idea, make enum for "File" and "Empty" ?
-#[derive(Debug, Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 struct Block {
     idx: usize,
     len: usize,
     id: u64,
+}
+
+impl Ord for Block {
+    fn cmp(&self, other: &Self) -> Ordering {
+        // self.idx.cmp(&other.idx).reverse()
+        other.idx.cmp(&self.idx)
+    }
+}
+
+impl PartialOrd for Block {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 #[cfg(test)]
