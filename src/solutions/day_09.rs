@@ -1,6 +1,4 @@
 pub fn solve_1(disk_map: &str) -> u64 {
-    // Naive and slow implementation, should speed up by keeping
-    // a running deque of both open and closed spaces and running them in opposing orders
     let mut disk: Vec<u64> = vec![];
     let mut file = true;
     let mut id = 0;
@@ -16,14 +14,18 @@ pub fn solve_1(disk_map: &str) -> u64 {
         file = !file;
     }
 
-    loop {
-        let first_free = (0..disk.len()).find(|&idx| disk[idx] == u64::MAX).unwrap();
-        let last_file = (0..disk.len())
-            .rev()
-            .find(|&idx| disk[idx] != u64::MAX)
-            .unwrap();
+    let mut space_idx = 0;
+    let mut file_idx = disk.len() - 1;
 
-        if last_file < first_free {
+    loop {
+        while disk[space_idx] != u64::MAX {
+            space_idx += 1;
+        }
+        while disk[file_idx] == u64::MAX {
+            file_idx -= 1;
+        }
+
+        if space_idx > file_idx {
             return disk
                 .iter()
                 .take_while(|&&f| f != u64::MAX)
@@ -32,8 +34,8 @@ pub fn solve_1(disk_map: &str) -> u64 {
                 .sum();
         }
 
-        disk[first_free] = disk[last_file];
-        disk[last_file] = u64::MAX;
+        disk[space_idx] = disk[file_idx];
+        disk[file_idx] = u64::MAX;
     }
 }
 
