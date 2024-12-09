@@ -2,21 +2,13 @@ use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
 pub fn solve_1(disk_map: &str) -> u64 {
-    let mut disk: Vec<u64> = vec![];
-    let mut file = true;
-    let mut id = 0;
-
-    for c in disk_map.chars().map(|c| c.to_digit(10).unwrap()) {
-        if file {
-            (0..c).for_each(|_| disk.push(id));
-            id += 1;
-        } else {
-            (0..c).for_each(|_| disk.push(u64::MAX));
-        }
-
-        file = !file;
-    }
-
+    let mut disk: Vec<_> = disk_map
+        .chars()
+        .map(|c| c.to_digit(10).unwrap())
+        .enumerate()
+        .map(|(idx, d)| (idx as u64, d))
+        .flat_map(|(idx, d)| (0..d).map(move |_| if idx % 2 == 0 { idx / 2 } else { u64::MAX }))
+        .collect();
     let mut space_idx = 0;
     let mut file_idx = disk.len() - 1;
 
