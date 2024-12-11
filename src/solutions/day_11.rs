@@ -10,7 +10,36 @@ pub fn solve_2(stones: &str) -> u64 {
 }
 
 fn solve(stones: &str, iterations: u32) -> u64 {
-    let mut stones: FxHashMap<u64, u64> = stones
+    fn solve_helper(stones: FxHashMap<u64, u64>, iterations: u32) -> FxHashMap<u64, u64> {
+        if iterations == 0 {
+            return stones;
+        }
+
+        let new_stones = stones
+            .into_iter()
+            .flat_map(|(stone, count)| match stone {
+                0 => vec![(1, count)],
+                _ if nr_digits(stone) % 2 == 0 => {
+                    let (left, right) = split_stone(stone);
+                    vec![(left, count), (right, count)]
+                }
+                _ => vec![(stone * 2024, count)],
+            })
+            .sorted_by_key(|&(stone, _)| stone)
+            .chunk_by(|&(stone, _)| stone)
+            .into_iter()
+            .map(|(stone, counts)| {
+                (
+                    stone,
+                    counts.into_iter().map(|(_, count)| count).sum::<u64>(),
+                )
+            })
+            .collect();
+
+        solve_helper(new_stones, iterations - 1)
+    }
+
+    let stones = stones
         .split(" ")
         .map(|s| s.parse::<u64>().unwrap())
         .sorted()
@@ -19,25 +48,7 @@ fn solve(stones: &str, iterations: u32) -> u64 {
         .map(|(stone, grouped)| (stone, grouped.count() as u64))
         .collect();
 
-    for _ in 0..iterations {
-        let mut new_stones: FxHashMap<u64, u64> = FxHashMap::default();
-
-        for (stone, count) in stones {
-            if stone == 0 {
-                *new_stones.entry(1).or_insert(0) += count;
-            } else if nr_digits(stone) % 2 == 0 {
-                let (left, right) = split_stone(stone);
-                *new_stones.entry(left).or_insert(0) += count;
-                *new_stones.entry(right).or_insert(0) += count;
-            } else {
-                *new_stones.entry(stone * 2024).or_insert(0) += count;
-            }
-        }
-
-        stones = new_stones;
-    }
-
-    stones.values().sum()
+    solve_helper(stones, iterations).values().sum()
 }
 
 fn nr_digits(n: u64) -> u32 {
