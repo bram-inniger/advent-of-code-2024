@@ -100,6 +100,7 @@ impl Region {
                 4 - plant
                     .neighbours()
                     .iter()
+                    .map(|(neighbour, _)| neighbour)
                     .filter(|neighbour| self.plants.contains(neighbour))
                     .count()
             })
@@ -110,66 +111,7 @@ impl Region {
         let sides: HashMap<_, _> = self
             .plants
             .iter()
-            .flat_map(|plant| {
-                // improvement - get rid of the mutation, re-use "neighbours()", move into "Side"
-                let mut fenced_sides: Vec<Side> = Vec::new();
-
-                let up = Coordinate {
-                    x: plant.x,
-                    y: plant.y - 1,
-                };
-                let right = Coordinate {
-                    x: plant.x + 1,
-                    y: plant.y,
-                };
-                let down = Coordinate {
-                    x: plant.x,
-                    y: plant.y + 1,
-                };
-                let left = Coordinate {
-                    x: plant.x - 1,
-                    y: plant.y,
-                };
-
-                if self.plants.contains(&up).not() {
-                    fenced_sides.push(Side {
-                        start: Coordinate {
-                            x: plant.x,
-                            y: plant.y,
-                        },
-                        orientation: Orientation::HorizontalUp,
-                    });
-                }
-                if self.plants.contains(&right).not() {
-                    fenced_sides.push(Side {
-                        start: Coordinate {
-                            x: plant.x + 1,
-                            y: plant.y,
-                        },
-                        orientation: Orientation::VerticalRight,
-                    });
-                }
-                if self.plants.contains(&down).not() {
-                    fenced_sides.push(Side {
-                        start: Coordinate {
-                            x: plant.x,
-                            y: plant.y + 1,
-                        },
-                        orientation: Orientation::HorizontalDown,
-                    });
-                }
-                if self.plants.contains(&left).not() {
-                    fenced_sides.push(Side {
-                        start: Coordinate {
-                            x: plant.x,
-                            y: plant.y,
-                        },
-                        orientation: Orientation::VerticalLeft,
-                    });
-                }
-
-                fenced_sides
-            })
+            .flat_map(|plant| plant.sides(self))
             .enumerate()
             .map(|(idx, side)| (side, idx))
             .collect();
@@ -194,25 +136,16 @@ struct Coordinate {
 }
 
 impl Coordinate {
-    fn neighbours(&self) -> Vec<Self> {
-        vec![
-            Self {
-                x: self.x + 1,
-                y: self.y,
-            },
-            Self {
-                x: self.x - 1,
-                y: self.y,
-            },
-            Self {
-                x: self.x,
-                y: self.y + 1,
-            },
-            Self {
-                x: self.x,
-                y: self.y - 1,
-            },
-        ]
+    fn neighbours(&self) -> Vec<(Self, Direction)> {
+        #[rustfmt::skip]
+        let neighbours = vec![
+            (Self { x: self.x + 1, y: self.y, }, Direction::Right),
+            (Self { x: self.x - 1, y: self.y, }, Direction::Left),
+            (Self { x: self.x, y: self.y + 1, }, Direction::Down),
+            (Self { x: self.x, y: self.y - 1, }, Direction::Up),
+        ];
+
+        neighbours
     }
 
     fn from_idx(idx: usize, width: usize) -> Self {
@@ -220,6 +153,29 @@ impl Coordinate {
             x: (idx % width) as i32,
             y: (idx / width) as i32,
         }
+    }
+
+    fn sides(&self, region: &Region) -> Vec<Side> {
+        self.neighbours()
+            .iter()
+            .filter(|(neighbour, _)| region.plants.contains(neighbour).not())
+            .map(|(_, direction)| {
+                let orientation = direction.as_orientation();
+                let x = match orientation {
+                    Orientation::VerticalRight => self.x + 1,
+                    _ => self.x,
+                };
+                let y = match orientation {
+                    Orientation::HorizontalDown => self.y + 1,
+                    _ => self.y,
+                };
+
+                Side {
+                    start: Coordinate { x, y },
+                    orientation,
+                }
+            })
+            .collect()
     }
 }
 
@@ -256,6 +212,25 @@ enum Orientation {
     HorizontalDown,
     VerticalLeft,
     VerticalRight,
+}
+
+#[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
+enum Direction {
+    Up,
+    Right,
+    Down,
+    Left,
+}
+
+impl Direction {
+    fn as_orientation(&self) -> Orientation {
+        match self {
+            Direction::Up => Orientation::HorizontalUp,
+            Direction::Right => Orientation::VerticalRight,
+            Direction::Down => Orientation::HorizontalDown,
+            Direction::Left => Orientation::VerticalLeft,
+        }
+    }
 }
 
 #[derive(Debug)]
