@@ -119,7 +119,10 @@ impl Region {
         let mut uf = UnionFind::new(sides.len());
 
         for (side, idx) in &sides {
-            let neighbour = side.neighbour();
+            let neighbour = match side.orientation {
+                Orientation::HorizontalUp | Orientation::HorizontalDown => side.right_neighbour(),
+                Orientation::VerticalLeft | Orientation::VerticalRight => side.under_neighbour(),
+            };
             if let Some(neighbour_idx) = sides.get(&neighbour) {
                 uf.union(*idx, *neighbour_idx);
             }
@@ -186,22 +189,23 @@ struct Side {
 }
 
 impl Side {
-    fn neighbour(&self) -> Self {
-        match self.orientation {
-            Orientation::HorizontalUp | Orientation::HorizontalDown => Side {
-                start: Coordinate {
-                    x: self.start.x + 1,
-                    y: self.start.y,
-                },
-                orientation: self.orientation,
+    fn right_neighbour(&self) -> Self {
+        Self {
+            start: Coordinate {
+                x: self.start.x + 1,
+                y: self.start.y,
             },
-            Orientation::VerticalLeft | Orientation::VerticalRight => Side {
-                start: Coordinate {
-                    x: self.start.x,
-                    y: self.start.y + 1,
-                },
-                orientation: self.orientation,
+            orientation: self.orientation,
+        }
+    }
+
+    fn under_neighbour(&self) -> Self {
+        Self {
+            start: Coordinate {
+                x: self.start.x,
+                y: self.start.y + 1,
             },
+            orientation: self.orientation,
         }
     }
 }
