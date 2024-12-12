@@ -1,0 +1,230 @@
+use itertools::Itertools;
+use std::cmp::Ordering;
+use std::collections::HashSet;
+
+pub fn solve_1(garden: &[&str]) -> u32 {
+    Garden::new(garden)
+        .regions()
+        .iter()
+        .map(|r| r.price())
+        .sum()
+}
+
+#[derive(Debug)]
+struct Garden {
+    plants: Vec<char>,
+    width: usize,
+    height: usize,
+}
+
+impl Garden {
+    fn new(garden: &[&str]) -> Self {
+        let width = garden[0].len();
+        let height = garden.len();
+        let plants = garden.iter().flat_map(|line| line.chars()).collect();
+
+        Self {
+            plants,
+            width,
+            height,
+        }
+    }
+
+    fn regions(&self) -> Vec<Region> {
+        let mut uf = UnionFind::new(self.plants.len());
+
+        for y in 0..self.height {
+            for x in 0..self.width {
+                let current = y * self.width + x;
+                let right = y * self.width + (x + 1);
+                let under = (y + 1) * self.width + x;
+
+                if x < self.width - 1 && self.plants[current] == self.plants[right] {
+                    uf.union(current, right);
+                }
+                if y < self.height - 1 && self.plants[current] == self.plants[under] {
+                    uf.union(current, under);
+                }
+            }
+        }
+
+        uf.sets()
+            .iter()
+            .map(|set| {
+                let _plant_name = self.plants[set[0]];
+                let plants = set
+                    .iter()
+                    .map(|&plant| Coordinate::from_idx(plant, self.width))
+                    .collect();
+
+                Region {
+                    _plant_name,
+                    plants,
+                }
+            })
+            .collect()
+    }
+}
+
+#[derive(Debug)]
+struct Region {
+    _plant_name: char,
+    plants: HashSet<Coordinate>,
+}
+
+impl Region {
+    fn price(&self) -> u32 {
+        let area = self.plants.len() as u32;
+        let perimeter = self
+            .plants
+            .iter()
+            .map(|plant| {
+                4 - plant
+                    .neighbours()
+                    .iter()
+                    .filter(|neighbour| self.plants.contains(neighbour))
+                    .count()
+            })
+            .sum::<usize>() as u32;
+
+        area * perimeter
+    }
+}
+
+#[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
+struct Coordinate {
+    x: i32,
+    y: i32,
+}
+
+impl Coordinate {
+    fn neighbours(&self) -> Vec<Coordinate> {
+        vec![
+            Coordinate {
+                x: self.x + 1,
+                y: self.y,
+            },
+            Coordinate {
+                x: self.x - 1,
+                y: self.y,
+            },
+            Coordinate {
+                x: self.x,
+                y: self.y + 1,
+            },
+            Coordinate {
+                x: self.x,
+                y: self.y - 1,
+            },
+        ]
+    }
+
+    fn from_idx(idx: usize, width: usize) -> Coordinate {
+        Coordinate {
+            x: (idx % width) as i32,
+            y: (idx / width) as i32,
+        }
+    }
+}
+
+#[derive(Debug)]
+struct UnionFind {
+    parents: Vec<usize>,
+    ranks: Vec<usize>,
+}
+
+impl UnionFind {
+    pub fn new(n: usize) -> Self {
+        UnionFind {
+            parents: (0..n).collect(),
+            ranks: vec![0; n],
+        }
+    }
+
+    fn find(&mut self, idx: usize) -> usize {
+        // Path compression
+        if self.parents[idx] != idx {
+            self.parents[idx] = self.find(self.parents[idx]);
+        }
+        self.parents[idx]
+    }
+
+    fn union(&mut self, idx_1: usize, idx_2: usize) {
+        let root_1 = self.find(idx_1);
+        let root_2 = self.find(idx_2);
+
+        if root_1 != root_2 {
+            // Union by rank
+            match self.ranks[root_1].cmp(&self.ranks[root_2]) {
+                Ordering::Less => self.parents[root_1] = root_2,
+                Ordering::Greater => self.parents[root_2] = root_1,
+                Ordering::Equal => {
+                    self.parents[root_2] = root_1;
+                    self.ranks[root_1] += 1;
+                }
+            }
+        }
+    }
+
+    fn sets(&mut self) -> Vec<Vec<usize>> {
+        (0..self.parents.len())
+            .map(|idx| (self.find(idx), idx))
+            .sorted_by_key(|&(root, _)| root)
+            .chunk_by(|&(root, _)| root)
+            .into_iter()
+            .map(|(_, set)| set.into_iter().map(move |(_, idx)| idx).collect())
+            .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use itertools::Itertools;
+
+    use super::*;
+
+    #[test]
+    fn day_12_part_01_sample() {
+        #[rustfmt::skip]
+        let sample_1 = vec![
+            "AAAA",
+            "BBCD",
+            "BBCC",
+            "EEEC",
+        ];
+        #[rustfmt::skip]
+        let sample_2 = vec![
+            "OOOOO",
+            "OXOXO",
+            "OOOOO",
+            "OXOXO",
+            "OOOOO",
+        ];
+        #[rustfmt::skip]
+        let sample_3 = vec![
+            "RRRRIICCFF",
+            "RRRRIICCCF",
+            "VVRRRCCFFF",
+            "VVRCCCJFFF",
+            "VVVVCJJCFE",
+            "VVIVCCJJEE",
+            "VVIIICJJEE",
+            "MIIIIIJJEE",
+            "MIIISIJEEE",
+            "MMMISSJEEE",
+        ];
+
+        assert_eq!(140, solve_1(&sample_1));
+        assert_eq!(772, solve_1(&sample_2));
+        assert_eq!(1_930, solve_1(&sample_3));
+    }
+
+    #[test]
+    fn day_12_part_01_solution() {
+        let input = include_str!("../../inputs/day_12.txt")
+            .lines()
+            .collect_vec();
+
+        assert_eq!(1_437_300, solve_1(&input));
+    }
+}
