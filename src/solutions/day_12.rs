@@ -1,12 +1,21 @@
 use itertools::Itertools;
 use std::cmp::Ordering;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use std::ops::Not;
 
 pub fn solve_1(garden: &[&str]) -> u32 {
+    solve(garden, false)
+}
+
+pub fn solve_2(garden: &[&str]) -> u32 {
+    solve(garden, true)
+}
+
+fn solve(garden: &[&str], discount: bool) -> u32 {
     Garden::new(garden)
         .regions()
         .iter()
-        .map(|r| r.price())
+        .map(|r| r.price(discount))
         .sum()
 }
 
@@ -73,10 +82,19 @@ struct Region {
 }
 
 impl Region {
-    fn price(&self) -> u32 {
+    fn price(&self, discount: bool) -> u32 {
         let area = self.plants.len() as u32;
-        let perimeter = self
-            .plants
+        let fencing = if discount {
+            self.sides()
+        } else {
+            self.perimeter()
+        };
+
+        area * fencing
+    }
+
+    fn perimeter(&self) -> u32 {
+        self.plants
             .iter()
             .map(|plant| {
                 4 - plant
@@ -85,9 +103,87 @@ impl Region {
                     .filter(|neighbour| self.plants.contains(neighbour))
                     .count()
             })
-            .sum::<usize>() as u32;
+            .sum::<usize>() as u32
+    }
 
-        area * perimeter
+    fn sides(&self) -> u32 {
+        let sides: HashMap<_, _> = self
+            .plants
+            .iter()
+            .flat_map(|plant| {
+                // improvement - get rid of the mutation, re-use "neighbours()", move into "Side"
+                let mut fenced_sides: Vec<Side> = Vec::new();
+
+                let up = Coordinate {
+                    x: plant.x,
+                    y: plant.y - 1,
+                };
+                let right = Coordinate {
+                    x: plant.x + 1,
+                    y: plant.y,
+                };
+                let down = Coordinate {
+                    x: plant.x,
+                    y: plant.y + 1,
+                };
+                let left = Coordinate {
+                    x: plant.x - 1,
+                    y: plant.y,
+                };
+
+                if self.plants.contains(&up).not() {
+                    fenced_sides.push(Side {
+                        start: Coordinate {
+                            x: plant.x,
+                            y: plant.y,
+                        },
+                        orientation: Orientation::HorizontalUp,
+                    });
+                }
+                if self.plants.contains(&right).not() {
+                    fenced_sides.push(Side {
+                        start: Coordinate {
+                            x: plant.x + 1,
+                            y: plant.y,
+                        },
+                        orientation: Orientation::VerticalRight,
+                    });
+                }
+                if self.plants.contains(&down).not() {
+                    fenced_sides.push(Side {
+                        start: Coordinate {
+                            x: plant.x,
+                            y: plant.y + 1,
+                        },
+                        orientation: Orientation::HorizontalDown,
+                    });
+                }
+                if self.plants.contains(&left).not() {
+                    fenced_sides.push(Side {
+                        start: Coordinate {
+                            x: plant.x,
+                            y: plant.y,
+                        },
+                        orientation: Orientation::VerticalLeft,
+                    });
+                }
+
+                fenced_sides
+            })
+            .enumerate()
+            .map(|(idx, side)| (side, idx))
+            .collect();
+
+        let mut uf = UnionFind::new(sides.len());
+
+        for (side, idx) in &sides {
+            let neighbour = side.neighbour();
+            if let Some(neighbour_idx) = sides.get(&neighbour) {
+                uf.union(*idx, *neighbour_idx);
+            }
+        }
+
+        uf.sets().len() as u32
     }
 }
 
@@ -98,33 +194,68 @@ struct Coordinate {
 }
 
 impl Coordinate {
-    fn neighbours(&self) -> Vec<Coordinate> {
+    fn neighbours(&self) -> Vec<Self> {
         vec![
-            Coordinate {
+            Self {
                 x: self.x + 1,
                 y: self.y,
             },
-            Coordinate {
+            Self {
                 x: self.x - 1,
                 y: self.y,
             },
-            Coordinate {
+            Self {
                 x: self.x,
                 y: self.y + 1,
             },
-            Coordinate {
+            Self {
                 x: self.x,
                 y: self.y - 1,
             },
         ]
     }
 
-    fn from_idx(idx: usize, width: usize) -> Coordinate {
+    fn from_idx(idx: usize, width: usize) -> Self {
         Coordinate {
             x: (idx % width) as i32,
             y: (idx / width) as i32,
         }
     }
+}
+
+#[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
+struct Side {
+    start: Coordinate,
+    orientation: Orientation,
+}
+
+impl Side {
+    fn neighbour(&self) -> Self {
+        match self.orientation {
+            Orientation::HorizontalUp | Orientation::HorizontalDown => Side {
+                start: Coordinate {
+                    x: self.start.x + 1,
+                    y: self.start.y,
+                },
+                orientation: self.orientation,
+            },
+            Orientation::VerticalLeft | Orientation::VerticalRight => Side {
+                start: Coordinate {
+                    x: self.start.x,
+                    y: self.start.y + 1,
+                },
+                orientation: self.orientation,
+            },
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
+enum Orientation {
+    HorizontalUp,
+    HorizontalDown,
+    VerticalLeft,
+    VerticalRight,
 }
 
 #[derive(Debug)]
@@ -226,5 +357,69 @@ mod tests {
             .collect_vec();
 
         assert_eq!(1_437_300, solve_1(&input));
+    }
+
+    #[test]
+    fn day_12_part_02_sample() {
+        #[rustfmt::skip]
+        let sample_1 = vec![
+            "AAAA",
+            "BBCD",
+            "BBCC",
+            "EEEC",
+        ];
+        #[rustfmt::skip]
+        let sample_2 = vec![
+            "OOOOO",
+            "OXOXO",
+            "OOOOO",
+            "OXOXO",
+            "OOOOO",
+        ];
+        #[rustfmt::skip]
+        let sample_3 = vec![
+            "EEEEE",
+            "EXXXX",
+            "EEEEE",
+            "EXXXX",
+            "EEEEE",
+        ];
+        #[rustfmt::skip]
+        let sample_4 = vec![
+            "AAAAAA",
+            "AAABBA",
+            "AAABBA",
+            "ABBAAA",
+            "ABBAAA",
+            "AAAAAA",
+        ];
+        #[rustfmt::skip]
+        let sample_5 = vec![
+            "RRRRIICCFF",
+            "RRRRIICCCF",
+            "VVRRRCCFFF",
+            "VVRCCCJFFF",
+            "VVVVCJJCFE",
+            "VVIVCCJJEE",
+            "VVIIICJJEE",
+            "MIIIIIJJEE",
+            "MIIISIJEEE",
+            "MMMISSJEEE",
+        ];
+
+        assert_eq!(80, solve_2(&sample_1));
+        assert_eq!(436, solve_2(&sample_2));
+        assert_eq!(236, solve_2(&sample_3));
+        assert_eq!(368, solve_2(&sample_4));
+        assert_eq!(1_206, solve_2(&sample_5));
+    }
+
+    #[test]
+    fn day_12_part_02_solution() {
+        let input = include_str!("../../inputs/day_12.txt")
+            .lines()
+            .collect_vec();
+
+        assert_eq!(849_332, solve_2(&input));
     }
 }
