@@ -1,11 +1,19 @@
 use lazy_static::lazy_static;
 use regex::Regex;
 
-pub fn solve_1(machines: &str) -> i32 {
+pub fn solve_1(machines: &str) -> i64 {
+    solve(machines, None, Some(100))
+}
+
+pub fn solve_2(machines: &str) -> i64 {
+    solve(machines, Some(10_000_000_000_000), None)
+}
+
+fn solve(machines: &str, addition: Option<i64>, max_nr_pushes: Option<i64>) -> i64 {
     machines
         .split("\n\n")
-        .map(Machine::new)
-        .map(|machine| machine.min_tokens())
+        .map(|machine| Machine::new(machine, addition))
+        .filter_map(|machine| machine.min_tokens(max_nr_pushes))
         .sum()
 }
 
@@ -17,26 +25,17 @@ struct Machine {
 }
 
 impl Machine {
-    fn new(machine: &str) -> Self {
+    fn new(machine: &str, addition: Option<i64>) -> Self {
         let lines = machine.lines().collect::<Vec<_>>();
 
-        let button_a = BUTTON_RE.captures(lines[0]).unwrap();
-        let x_a = button_a.name("x").unwrap().as_str().parse::<i32>().unwrap();
-        let y_a = button_a.name("y").unwrap().as_str().parse::<i32>().unwrap();
-        let button_a = Position { x: x_a, y: y_a };
+        let button_a = Position::from_str(lines[0], &BUTTON_RE);
+        let button_b = Position::from_str(lines[1], &BUTTON_RE);
+        let mut prize = Position::from_str(lines[2], &PRIZE_RE);
 
-        let button_b = BUTTON_RE.captures(lines[1]).unwrap();
-        let x_b = button_b.name("x").unwrap().as_str().parse::<i32>().unwrap();
-        let y_b = button_b.name("y").unwrap().as_str().parse::<i32>().unwrap();
-        let button_b = Position { x: x_b, y: y_b };
-
-        let prize = PRIZE_RE.captures(lines[2]).unwrap();
-        let x_prize = prize.name("x").unwrap().as_str().parse::<i32>().unwrap();
-        let y_prize = prize.name("y").unwrap().as_str().parse::<i32>().unwrap();
-        let prize = Position {
-            x: x_prize,
-            y: y_prize,
-        };
+        if let Some(addition) = addition {
+            prize.x += addition;
+            prize.y += addition;
+        }
 
         Self {
             button_a,
@@ -45,22 +44,36 @@ impl Machine {
         }
     }
 
-    fn min_tokens(&self) -> i32 {
-        (0..=100)
-            .map(|a_times| {
-                let x_rem = self.prize.x - self.button_a.x * a_times;
-                let b_times = x_rem / self.button_b.x;
+    fn min_tokens(&self, max_nr_pushes: Option<i64>) -> Option<i64> {
+        // The system is modeled by the following set of equations:
+        //
+        // 1. button_a.x * pushes_a + button_b.x * pushes_b = price.x
+        // 2. button_a.y * pushes_a + button_b.y * pushes_b = price.y
+        // 3. pushes_a, pushes_b ∈ ℕ
+        // 4. cost = 3 * pushes_a + 1 * pushes_b
+        //
+        // Solving for both 1 and 2 will yield "pushes_a" and "pushes_b"
+        // These should then be verified to exist in the set of Natural number
+        // If they do, return the result of the cost function, otherwise return 0
 
-                (a_times, b_times)
-            })
-            .filter(|&(a_times, b_times)| {
-                b_times >= 0
-                    && a_times * self.button_a.x + b_times * self.button_b.x == self.prize.x
-                    && a_times * self.button_a.y + b_times * self.button_b.y == self.prize.y
-            })
-            .map(|(a_times, b_times)| a_times * 3 + b_times)
-            .min()
-            .unwrap_or(0)
+        let max_nr_pushes = max_nr_pushes.unwrap_or(i64::MAX);
+
+        let Position { x: a_x, y: a_y } = self.button_a;
+        let Position { x: b_x, y: b_y } = self.button_b;
+        let Position { x: p_x, y: p_y } = self.prize;
+
+        let pushes_b = (a_x * p_y - a_y * p_x) / (a_x * b_y - a_y * b_x);
+        let pushes_a = (p_x - b_x * pushes_b) / a_x;
+
+        if (0..=max_nr_pushes).contains(&pushes_a)
+            && (0..=max_nr_pushes).contains(&pushes_b)
+            && a_x * pushes_a + b_x * pushes_b == self.prize.x
+            && a_y * pushes_a + b_y * pushes_b == self.prize.y
+        {
+            Some(3 * pushes_a + pushes_b)
+        } else {
+            None
+        }
     }
 }
 
@@ -72,8 +85,17 @@ lazy_static! {
 
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 struct Position {
-    x: i32,
-    y: i32,
+    x: i64,
+    y: i64,
+}
+
+impl Position {
+    fn from_str(position: &str, regex: &Regex) -> Self {
+        let position = regex.captures(position).unwrap();
+        let x = position.name("x").unwrap().as_str().parse::<i64>().unwrap();
+        let y = position.name("y").unwrap().as_str().parse::<i64>().unwrap();
+        Self { x, y }
+    }
 }
 
 #[cfg(test)]
@@ -108,5 +130,17 @@ mod tests {
         let input = include_str!("../../inputs/day_13.txt").trim();
 
         assert_eq!(33_209, solve_1(input));
+    }
+
+    #[test]
+    fn day_13_part_02_sample() {
+        // No sample solution provided
+    }
+
+    #[test]
+    fn day_13_part_02_solution() {
+        let input = include_str!("../../inputs/day_13.txt").trim();
+
+        assert_eq!(83_102_355_665_474, solve_2(input));
     }
 }
