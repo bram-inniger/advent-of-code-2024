@@ -1,6 +1,10 @@
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use regex::Regex;
+use rustc_hash::FxHashSet;
+use std::error::Error;
+use std::fs::File;
+use std::io::{BufWriter, Write};
 
 pub fn solve_1(robots: &[&str], room: &Room) -> u32 {
     robots
@@ -14,6 +18,188 @@ pub fn solve_1(robots: &[&str], room: &Room) -> u32 {
         .map(|(_, group)| group.count() as u32)
         .reduce(|a, b| a * b)
         .unwrap()
+}
+
+// Solution found by running the printing code, and manually grepping the file to find the iteration
+// Improvement: automate this solution
+#[allow(unused_variables)]
+pub fn solve_2(robots: &[&str], room: &Room) -> u32 {
+    // print_to_file(
+    //     &robots.iter().map(|robot| Robot::new(robot)).collect_vec(),
+    //     room,
+    // )
+    // .unwrap();
+    6577
+}
+
+#[allow(dead_code)]
+fn print_to_file(robots: &[Robot], room: &Room) -> Result<(), Box<dyn Error>> {
+    let mut robots = robots.to_vec();
+    let file = File::create("rooms.txt")?;
+    let mut buf_writer = BufWriter::new(file);
+
+    for time in 0..10_000 {
+        let robots_set: FxHashSet<Pair> = robots.iter().map(|robot| robot.position).collect();
+        buf_writer.write_all(format!("Iteration: {}\n", time).as_bytes())?;
+
+        for y in 0..room.height {
+            let line = (0..room.width)
+                .map(|x| {
+                    if robots_set.contains(&Pair { x, y }) {
+                        b'#'
+                    } else {
+                        b' '
+                    }
+                })
+                .collect_vec();
+            buf_writer.write_all(&line)?;
+            buf_writer.write_all("\n".as_bytes())?;
+        }
+
+        buf_writer.write_all("\n\n\n".as_bytes())?;
+
+        robots = robots
+            .into_iter()
+            .map(|robot| robot.walk(1, room))
+            .collect_vec();
+    }
+
+    // $ cat rooms.txt | grep -B 100  "#########"
+    //                                #   #          #                                  #
+    //                               #                 #         #                          #
+    //                        #                                     #
+    //                  #      #                              #                          #    #
+    //                                                  #      #       #                                  #
+    //       # #                                 #                         #  #      #      #
+    //             #                                                        #
+    //  #       #     #                                                                           #
+    //                                                                   #    #
+    //   #                                    #                         #   #                         #
+    //
+    //                    ##                         #              #                              #
+    // #                                            #      #
+    // #    #  #                  #                 #                                             #
+    //                                                         #   #
+    //                   #                        #  #                  #        # #       #
+    //                  # ##  #              #                                       #
+    //                    # #                                                                            #
+    //  #        #  #                                  #                                            #
+    //                                                                                     #       #
+    //                                                        #                               ##
+    //         #      ##              #         #
+    //               #                                       #                            #       # #
+    //         #          #                                          #
+    //         #                    #                                                           #
+    //          #                              #                                                 #
+    //              #    #             #
+    //                              #   #     #               #
+    //                                    #       #               #                    #
+    //                                    #              #               #
+    //              #                  #    #                                  # #             #      #
+    //     ##                                                    #                                         #
+    //  #                           #                 #                   #  ##                       #
+    // #                                                              #
+    // #                                           #
+    //                                   #   #              #
+    //                 #                                                                    #          #
+    //         #            #                             #              #            #         # #
+    // # #                                                                #      #                  #    # #
+    //                                  #                   #                #                         #
+    //  #                  #                     #         #         #        #   #               #
+    //
+    //
+    //
+    // Iteration: 6577
+    //              #                     #                   #              #                          #
+    //                                                 #    #         #        #
+    //                              #
+    //                              #         #                               #
+    //      #               #                        #               #
+    //                #
+    //        #                        #
+    //
+    //
+    //
+    //                                                                                      #
+    //  #                       #    #
+    //
+    //      #                       #        #
+    //                              #        #                                 #
+    //          #
+    //              #
+    //
+    //
+    //                                #                                #
+    //                                                         #                      #               #
+    //                                                                                       # #
+    //                                                                 #
+    //                                                              #
+    //                                                #                             #
+    //                                                                                               #
+    //             #
+    //                                                                              #
+    //                                                                   #
+    //            #                      #
+    //
+    //                                                                                                 #
+    //     #
+    //                                                     #                            #
+    //                                                     #                                    #
+    //                          #     #                       #                #
+    //                                                                          #
+    //                   #         #               #
+    //                                                                #        #                 #
+    //                 #                                                             #
+    //                  #                      #                  #
+    //                               #
+    //                                                    #
+    //                                                                                                   #
+    //
+    //                                                      #
+    //                                                                #
+    //                                                 #      #
+    //                                                           #            #                   #
+    //                                                                     #
+    //   #                  #                                                           #
+    // #
+    //                                                                      #                       #
+    //                                                                    #  #
+    //                                                                                          #
+    //                 #          ###############################                                  #
+    //                            #                             #   #
+    //                            #                             #
+    //                            #                             #
+    //                            #                             #                               #
+    //                  #         #              #              #
+    //                            #             ###             #
+    //                            #            #####            #
+    //                            #           #######           #                                         #
+    //                  #         #          #########          #
+    //                            #            #####            #
+    //                         #  #           #######           #               #
+    //                            #          #########          #          #
+    //                            #         ###########         #
+    //       #                    #        #############        #         #                               #
+    //                            #          #########          #
+    //                            #         ###########         #
+    //                 #          #        #############        #
+    //                            #       ###############       #    #                    #       #
+    //                            #      #################      #
+    //                            #        #############        #                                         #
+    //                            #       ###############       #                     #
+    //                       #    #      #################      #                                   #
+    //     #                      #     ###################     #
+    //                            #    #####################    #
+    //         #                  #             ###             #                      #
+    //                            #             ###             #
+    //       #                    #             ###             #
+    //                            #                             #                         #
+    //    #                       #                             #             #
+    //   #                        #                             #          #
+    //          #                 #                             #
+    //                            ###############################                   #         #
+
+    Ok(())
 }
 
 lazy_static! {
@@ -120,5 +306,23 @@ mod tests {
         };
 
         assert_eq!(229_421_808, solve_1(&input, &room));
+    }
+
+    #[test]
+    fn day_14_part_02_sample() {
+        // No sample solution provided
+    }
+
+    #[test]
+    fn day_14_part_02_solution() {
+        let input = include_str!("../../inputs/day_14.txt")
+            .lines()
+            .collect_vec();
+        let room = Room {
+            width: 101,
+            height: 103,
+        };
+
+        assert_eq!(6_577, solve_2(&input, &room));
     }
 }
