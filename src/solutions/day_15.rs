@@ -4,50 +4,18 @@ use std::fmt::{Display, Formatter};
 use std::ops::{Index, IndexMut};
 
 pub fn solve_1(description: &str) -> usize {
-    let (warehouse, moves) = description.split_once("\n\n").unwrap();
-
-    let mut robot = Robot::new(moves, warehouse, false);
-    let mut warehouse = Warehouse::new(warehouse, false);
-
-    while let Some(direction) = robot.moves.pop_front() {
-        let next_coordinate = robot.coordinate.next(&direction);
-        let next_type = warehouse[next_coordinate];
-
-        match next_type {
-            Type::Wall => continue,
-            Type::Empty => robot.coordinate = next_coordinate,
-            Type::BoxLeft => {
-                let mut box_end = next_coordinate;
-
-                while warehouse[box_end] == Type::BoxLeft {
-                    box_end = box_end.next(&direction);
-                }
-
-                match warehouse[box_end] {
-                    Type::Wall => continue,
-                    Type::Empty => {
-                        warehouse[box_end] = Type::BoxLeft;
-                        warehouse[next_coordinate] = Type::Empty;
-                        robot.coordinate = next_coordinate;
-                    }
-                    Type::BoxLeft => {
-                        panic!("End of the line of boxes is still a box: {:?}", box_end)
-                    }
-                    Type::BoxRight => unreachable!(),
-                }
-            }
-            Type::BoxRight => unreachable!(),
-        }
-    }
-
-    warehouse.gps_sum()
+    solve(description, false)
 }
 
 pub fn solve_2(description: &str) -> usize {
+    solve(description, true)
+}
+
+fn solve(description: &str, wide: bool) -> usize {
     let (warehouse, moves) = description.split_once("\n\n").unwrap();
 
-    let mut robot = Robot::new(moves, warehouse, true);
-    let mut warehouse = Warehouse::new(warehouse, true);
+    let mut robot = Robot::new(moves, warehouse, wide);
+    let mut warehouse = Warehouse::new(warehouse, wide);
 
     while let Some(direction) = robot.moves.pop_front() {
         let next_coordinate = robot.coordinate.next(&direction);
@@ -56,36 +24,47 @@ pub fn solve_2(description: &str) -> usize {
         match next_type {
             Type::Wall => continue,
             Type::Empty => robot.coordinate = next_coordinate,
-            Type::BoxLeft | Type::BoxRight
-                if [Direction::Up, Direction::Down].contains(&direction) =>
-            {
-                let adjacent = match next_type {
-                    Type::BoxLeft => next_coordinate.next(&Direction::Right),
-                    Type::BoxRight => next_coordinate.next(&Direction::Left),
-                    _ => unreachable!(),
-                };
-                let coordinates = match can_move(&next_coordinate, &direction, &warehouse) {
-                    Some(coordinates) => coordinates,
-                    None => continue,
-                };
-                let adjacent_coordinates = match can_move(&adjacent, &direction, &warehouse) {
-                    Some(coordinates) => coordinates,
-                    None => continue,
-                };
-
-                do_move(
-                    &[coordinates, adjacent_coordinates].concat(),
-                    &direction,
-                    &mut warehouse,
-                );
-                robot.coordinate = next_coordinate;
-            }
             Type::BoxLeft | Type::BoxRight => {
-                let coordinates = match can_move(&next_coordinate, &direction, &warehouse) {
-                    Some(coordinates) => coordinates,
-                    None => continue,
-                };
-                do_move(&coordinates, &direction, &mut warehouse);
+                if wide {
+                    let adjacent = match next_type {
+                        Type::BoxLeft => next_coordinate.next(&Direction::Right),
+                        Type::BoxRight => next_coordinate.next(&Direction::Left),
+                        _ => unreachable!(),
+                    };
+                    let coordinates = match can_move(&next_coordinate, &direction, &warehouse) {
+                        Some(coordinates) => coordinates,
+                        None => continue,
+                    };
+                    let adjacent_coordinates = match can_move(&adjacent, &direction, &warehouse) {
+                        Some(coordinates) => coordinates,
+                        None => continue,
+                    };
+
+                    do_move(
+                        &[coordinates, adjacent_coordinates].concat(),
+                        &direction,
+                        &mut warehouse,
+                    );
+                } else {
+                    let mut box_end = next_coordinate;
+
+                    while warehouse[box_end] == Type::BoxLeft {
+                        box_end = box_end.next(&direction);
+                    }
+
+                    match warehouse[box_end] {
+                        Type::Wall => continue,
+                        Type::Empty => {
+                            warehouse[box_end] = Type::BoxLeft;
+                            warehouse[next_coordinate] = Type::Empty;
+                        }
+                        Type::BoxLeft => {
+                            panic!("End of the line of boxes is still a box: {:?}", box_end)
+                        }
+                        Type::BoxRight => unreachable!(),
+                    }
+                }
+
                 robot.coordinate = next_coordinate;
             }
         }
