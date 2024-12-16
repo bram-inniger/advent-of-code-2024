@@ -1,4 +1,7 @@
 use rustc_hash::{FxHashMap, FxHashSet};
+use std::cmp::Ordering;
+use std::collections::VecDeque;
+use std::ops::Not;
 
 pub fn solve_1(maze: &[&str]) -> u32 {
     let maze = Maze::new(maze);
@@ -17,11 +20,39 @@ pub fn solve_1(maze: &[&str]) -> u32 {
         orientation,
     });
 
-    let distances = dijkstra(&maze, &start);
+    let (distances, _) = dijkstra(&maze, &start);
     end.iter().map(|e| distances[e]).min().unwrap()
 }
 
-fn dijkstra(maze: &Maze, start: &Node) -> FxHashMap<Node, u32> {
+pub fn solve_2(maze: &[&str]) -> usize {
+    let maze = Maze::new(maze);
+    let start = Node {
+        coordinate: maze.start,
+        orientation: Orientation::East,
+    };
+
+    let (distances, parents) = dijkstra(&maze, &start);
+
+    // TODO allow for multiple shortest paths hitting different ends
+    let shortest_end = [
+        Orientation::North,
+        Orientation::East,
+        Orientation::South,
+        Orientation::West,
+    ]
+    .map(|orientation| Node {
+        coordinate: maze.end,
+        orientation,
+    })
+    .into_iter()
+    .min_by_key(|n| distances[n])
+    .unwrap();
+
+    best_paths(&parents, &shortest_end).len()
+}
+
+// TODO make a proper Dijkstra data-agnostic struct and solver
+fn dijkstra(maze: &Maze, start: &Node) -> (FxHashMap<Node, u32>, FxHashMap<Node, Vec<Node>>) {
     let mut unvisited: FxHashSet<Node> = maze
         .tiles
         .iter()
@@ -47,6 +78,8 @@ fn dijkstra(maze: &Maze, start: &Node) -> FxHashMap<Node, u32> {
             (*node, distance)
         })
         .collect();
+    let mut parents: FxHashMap<Node, Vec<Node>> =
+        unvisited.iter().map(|&node| (node, vec![])).collect();
 
     loop {
         let Some((&current, &current_distance)) = distances
@@ -55,7 +88,7 @@ fn dijkstra(maze: &Maze, start: &Node) -> FxHashMap<Node, u32> {
             .filter(|(node, _)| unvisited.contains(node))
             .min_by_key(|&(_, distance)| distance)
         else {
-            return distances;
+            return (distances, parents);
         };
 
         for (neighbour, neighbour_distance) in current
@@ -63,14 +96,41 @@ fn dijkstra(maze: &Maze, start: &Node) -> FxHashMap<Node, u32> {
             .into_iter()
             .filter(|(node, _)| unvisited.contains(node))
         {
-            distances.insert(
-                neighbour,
-                u32::min(distances[&neighbour], current_distance + neighbour_distance),
-            );
+            let old_distance = distances[&neighbour];
+            let new_distance = current_distance + neighbour_distance;
+
+            match old_distance.cmp(&new_distance) {
+                Ordering::Less => {}
+                Ordering::Equal => {
+                    parents.get_mut(&neighbour).unwrap().push(current);
+                }
+                Ordering::Greater => {
+                    distances.insert(neighbour, new_distance);
+                    parents.insert(neighbour, vec![current]);
+                }
+            }
         }
 
         unvisited.remove(&current);
     }
+}
+
+fn best_paths(parents: &FxHashMap<Node, Vec<Node>>, end: &Node) -> FxHashSet<Coordinate> {
+    let mut visited: FxHashSet<Node> = FxHashSet::default();
+    let mut to_visit = VecDeque::new();
+    to_visit.push_back(*end);
+
+    while let Some(node) = to_visit.pop_front() {
+        parents[&node]
+            .iter()
+            .filter(|parent| visited.contains(parent).not())
+            .for_each(|&parent| {
+                to_visit.push_back(parent);
+            });
+        visited.insert(node);
+    }
+
+    visited.iter().map(|n| n.coordinate).collect()
 }
 
 #[derive(Debug)]
@@ -256,5 +316,57 @@ mod tests {
             .collect_vec();
 
         assert_eq!(94_444, solve_1(&input));
+    }
+
+    #[test]
+    fn day_16_part_02_sample() {
+        let sample_1 = vec![
+            "###############",
+            "#.......#....E#",
+            "#.#.###.#.###.#",
+            "#.....#.#...#.#",
+            "#.###.#####.#.#",
+            "#.#.#.......#.#",
+            "#.#.#####.###.#",
+            "#...........#.#",
+            "###.#.#####.#.#",
+            "#...#.....#.#.#",
+            "#.#.#.###.#.#.#",
+            "#.....#...#.#.#",
+            "#.###.#.#.#.#.#",
+            "#S..#.....#...#",
+            "###############",
+        ];
+        let sample_2 = vec![
+            "#################",
+            "#...#...#...#..E#",
+            "#.#.#.#.#.#.#.#.#",
+            "#.#.#.#...#...#.#",
+            "#.#.#.#.###.#.#.#",
+            "#...#.#.#.....#.#",
+            "#.#.#.#.#.#####.#",
+            "#.#...#.#.#.....#",
+            "#.#.#####.#.###.#",
+            "#.#.#.......#...#",
+            "#.#.###.#####.###",
+            "#.#.#...#.....#.#",
+            "#.#.#.#####.###.#",
+            "#.#.#.........#.#",
+            "#.#.#.#########.#",
+            "#S#.............#",
+            "#################",
+        ];
+
+        assert_eq!(45, solve_2(&sample_1));
+        assert_eq!(64, solve_2(&sample_2));
+    }
+
+    #[test]
+    fn day_16_part_02_solution() {
+        let input = include_str!("../../inputs/day_16.txt")
+            .lines()
+            .collect_vec();
+
+        assert_eq!(502, solve_2(&input));
     }
 }
