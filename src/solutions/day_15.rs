@@ -92,18 +92,9 @@ fn can_move(
                     _ => unreachable!(),
                 };
                 let adjacent_coordinate = next_coordinate.next(&adjacent_direction);
-                let next = match can_move(&next_coordinate, direction, warehouse) {
-                    Some(to_move) => to_move,
-                    None => {
-                        return None;
-                    }
-                };
-                let adjacent = match can_move(&adjacent_coordinate, direction, warehouse) {
-                    Some(to_move) => to_move,
-                    None => {
-                        return None;
-                    }
-                };
+
+                let next = can_move(&next_coordinate, direction, warehouse)?;
+                let adjacent = can_move(&adjacent_coordinate, direction, warehouse)?;
 
                 Some([next, adjacent, vec![*coordinate, adjacent_coordinate]].concat())
             }
