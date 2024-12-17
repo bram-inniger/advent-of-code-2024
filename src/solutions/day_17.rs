@@ -8,7 +8,7 @@ pub fn solve_2(program: &[&str]) -> u64 {
     let instructions = Computer::new(program).instructions;
     let mut guesses = vec![0u64];
 
-    for idx in 0..instructions.len() {
+    for idx in 1..=instructions.len() {
         guesses = guesses
             .into_iter()
             .flat_map(|valid_guess| (0..8).map(move |guess| valid_guess * 8 + guess))
@@ -17,8 +17,7 @@ pub fn solve_2(program: &[&str]) -> u64 {
                 computer.register_a = guess;
                 let out = computer.run();
 
-                out.len() > idx
-                    && out[out.len() - idx - 1] == instructions[instructions.len() - idx - 1]
+                out.len() >= idx && out[out.len() - idx] == instructions[instructions.len() - idx]
             })
             .collect_vec();
     }
