@@ -4,12 +4,34 @@ pub fn solve_1(program: &[&str]) -> String {
     Computer::new(program).run().iter().join(",")
 }
 
+pub fn solve_2(program: &[&str]) -> u64 {
+    let instructions = Computer::new(program).instructions;
+    let mut guesses = vec![0u64];
+
+    for idx in 0..instructions.len() {
+        guesses = guesses
+            .into_iter()
+            .flat_map(|valid_guess| (0..8).map(move |guess| valid_guess * 8 + guess))
+            .filter(|&guess| {
+                let mut computer = Computer::new(program);
+                computer.register_a = guess;
+                let out = computer.run();
+
+                out.len() > idx
+                    && out[out.len() - idx - 1] == instructions[instructions.len() - idx - 1]
+            })
+            .collect_vec();
+    }
+
+    *guesses.iter().min().unwrap()
+}
+
 #[derive(Debug)]
 struct Computer {
-    register_a: u32,
-    register_b: u32,
-    register_c: u32,
-    instructions: Vec<u32>,
+    register_a: u64,
+    register_b: u64,
+    register_c: u64,
+    instructions: Vec<u64>,
     ipr: usize,
 }
 
@@ -32,7 +54,7 @@ impl Computer {
         }
     }
 
-    fn run(&mut self) -> Vec<u32> {
+    fn run(&mut self) -> Vec<u64> {
         let mut output = vec![];
 
         loop {
@@ -61,7 +83,7 @@ enum Instruction {
 }
 
 impl Instruction {
-    fn from(opcode: u32) -> Self {
+    fn from(opcode: u64) -> Self {
         match opcode {
             0 => Self::Adv,
             1 => Self::Bxl,
@@ -75,7 +97,7 @@ impl Instruction {
         }
     }
 
-    fn execute(&self, operand: u32, computer: &mut Computer) -> Option<u32> {
+    fn execute(&self, operand: u64, computer: &mut Computer) -> Option<u64> {
         let combo = |combo_operand| match combo_operand {
             (0..=3) => combo_operand,
             4 => computer.register_a,
@@ -88,7 +110,7 @@ impl Instruction {
         let mut output = None;
 
         match self {
-            Instruction::Adv => computer.register_a /= 2u32.pow(combo(operand)),
+            Instruction::Adv => computer.register_a /= 2u64.pow(combo(operand) as u32),
             Instruction::Bxl => computer.register_b ^= operand,
             Instruction::Bst => computer.register_b = combo(operand) % 8,
             Instruction::Jnz => {
@@ -100,10 +122,10 @@ impl Instruction {
             Instruction::Bxc => computer.register_b ^= computer.register_c,
             Instruction::Out => output = Some(combo(operand) % 8),
             Instruction::Bdv => {
-                computer.register_b = computer.register_a / 2u32.pow(combo(operand))
+                computer.register_b = computer.register_a / 2u64.pow(combo(operand) as u32)
             }
             Instruction::Cdv => {
-                computer.register_c = computer.register_a / 2u32.pow(combo(operand))
+                computer.register_c = computer.register_a / 2u64.pow(combo(operand) as u32)
             }
         }
 
@@ -140,5 +162,27 @@ mod tests {
             .collect_vec();
 
         assert_eq!("1,6,3,6,5,6,5,1,7", solve_1(&input));
+    }
+
+    #[test]
+    fn day_17_part_02_sample() {
+        let sample = vec![
+            "Register A: 2024",
+            "Register B: 0",
+            "Register C: 0",
+            "",
+            "Program: 0,3,5,4,3,0",
+        ];
+
+        assert_eq!(117_440, solve_2(&sample));
+    }
+
+    #[test]
+    fn day_17_part_02_solution() {
+        let input = include_str!("../../inputs/day_17.txt")
+            .lines()
+            .collect_vec();
+
+        assert_eq!(247_839_653_009_594, solve_2(&input));
     }
 }
