@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use rustc_hash::FxHashSet;
 use std::collections::VecDeque;
 use std::ops::Not;
@@ -7,10 +8,10 @@ pub fn solve_1(bytes: &[&str], nr_bytes: usize, max_dim: i32) -> u32 {
 }
 
 pub fn solve_2(bytes: &[&str], max_dim: i32) -> String {
-    (0..)
-        .find(|&nr_bytes| distance_to_exit(bytes, nr_bytes, max_dim).is_none())
-        .map(|nr_bytes| bytes[nr_bytes - 1].to_owned())
-        .unwrap()
+    let nr_bytes = (0..bytes.len())
+        .collect_vec()
+        .partition_point(|&nr_bytes| distance_to_exit(bytes, nr_bytes, max_dim).is_some());
+    bytes[nr_bytes - 1].to_owned()
 }
 
 fn distance_to_exit(bytes: &[&str], nr_bytes: usize, max_dim: i32) -> Option<u32> {
