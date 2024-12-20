@@ -1,4 +1,6 @@
 use itertools::Itertools;
+use rayon::iter::IntoParallelRefIterator;
+use rayon::iter::ParallelIterator;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::VecDeque;
 
@@ -16,10 +18,11 @@ fn solve(track: &[&str], min_save: i32, max_cheat_dist: i32) -> usize {
 
     track
         .road
-        .iter()
-        .flat_map(|cheat| {
+        .par_iter()
+        .flat_map_iter(|cheat| {
             (-max_cheat_dist..=max_cheat_dist).flat_map(move |dx| {
-                (-max_cheat_dist..=max_cheat_dist).map(move |dy| (cheat, dx, dy))
+                (-max_cheat_dist + dx.abs()..=max_cheat_dist - dx.abs())
+                    .map(move |dy| (cheat, dx, dy))
             })
         })
         .map(|(cheat, dx, dy)| {
@@ -32,7 +35,7 @@ fn solve(track: &[&str], min_save: i32, max_cheat_dist: i32) -> usize {
                 dx.abs() + dy.abs(),
             )
         })
-        .filter(|(_, to, cheat_dist)| track.road.contains(to) && *cheat_dist <= max_cheat_dist)
+        .filter(|(_, to, _)| track.road.contains(to))
         .map(|(from, to, cheat_dist)| times[from] - times[&to] - cheat_dist)
         .filter(|&saved| saved >= min_save)
         .count()
