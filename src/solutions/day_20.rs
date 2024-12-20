@@ -1,41 +1,39 @@
 use itertools::Itertools;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::VecDeque;
-use std::ops::Not;
 
-pub fn solve_1(track: &[&str], min_save: u32) -> usize {
+pub fn solve_1(track: &[&str], min_save: i32) -> usize {
+    solve(track, min_save, 2)
+}
+
+pub fn solve_2(track: &[&str], min_save: i32) -> usize {
+    solve(track, min_save, 20)
+}
+
+fn solve(track: &[&str], min_save: i32, max_cheat_dist: i32) -> usize {
     let track = Track::new(track);
     let times = track.run();
 
-    (1..track.width)
-        .flat_map(|x| (1..track.height).map(move |y| Coordinate { x, y }))
+    track
+        .road
+        .iter()
         .flat_map(|cheat| {
-            [(1, 0), (0, 1), (-1, 0), (0, -1)]
-                .into_iter()
-                .map(move |(dx, dy)| (cheat, Coordinate { x: dx, y: dy }))
+            (-max_cheat_dist..=max_cheat_dist).flat_map(move |dx| {
+                (-max_cheat_dist..=max_cheat_dist).map(move |dy| (cheat, dx, dy))
+            })
         })
-        .map(|(cheat, delta)| {
+        .map(|(cheat, dx, dy)| {
             (
+                cheat,
                 Coordinate {
-                    x: cheat.x - delta.x,
-                    y: cheat.y - delta.y,
+                    x: cheat.x + dx,
+                    y: cheat.y + dy,
                 },
-                Coordinate {
-                    x: cheat.x,
-                    y: cheat.y,
-                },
-                Coordinate {
-                    x: cheat.x + delta.x,
-                    y: cheat.y + delta.y,
-                },
+                dx.abs() + dy.abs(),
             )
         })
-        .filter(|(zero, one, two)| {
-            track.road.contains(zero) && track.road.contains(one).not() && track.road.contains(two)
-        })
-        .map(|(zero, _, two)| (times[&zero], times[&two]))
-        .filter(|(from, to)| from > to)
-        .map(|(from, to)| from - to - 2)
+        .filter(|(_, to, cheat_dist)| track.road.contains(to) && *cheat_dist <= max_cheat_dist)
+        .map(|(from, to, cheat_dist)| times[from] - times[&to] - cheat_dist)
         .filter(|&saved| saved >= min_save)
         .count()
 }
@@ -88,9 +86,9 @@ impl Track {
         }
     }
 
-    fn run(&self) -> FxHashMap<Coordinate, u32> {
-        let mut to_visit = VecDeque::<(Coordinate, u32)>::new();
-        let mut visited = FxHashMap::<Coordinate, u32>::default();
+    fn run(&self) -> FxHashMap<Coordinate, i32> {
+        let mut to_visit = VecDeque::<(Coordinate, i32)>::new();
+        let mut visited = FxHashMap::<Coordinate, i32>::default();
 
         to_visit.push_back((self.end, 0));
 
@@ -155,7 +153,7 @@ mod tests {
 
         assert_eq!(
             14 + 14 + 2 + 4 + 2 + 3 + 1 + 1 + 1 + 1 + 1,
-            solve_1(&sample, 0)
+            solve_1(&sample, 1)
         );
     }
 
@@ -166,5 +164,40 @@ mod tests {
             .collect_vec();
 
         assert_eq!(1_289, solve_1(&input, 100));
+    }
+
+    #[test]
+    fn day_20_part_02_sample() {
+        let sample = vec![
+            "###############",
+            "#...#...#.....#",
+            "#.#.#.#.#.###.#",
+            "#S#...#.#.#...#",
+            "#######.#.#.###",
+            "#######.#.#...#",
+            "#######.#.###.#",
+            "###..E#...#...#",
+            "###.#######.###",
+            "#...###...#...#",
+            "#.#####.#.###.#",
+            "#.#...#.#.#...#",
+            "#.#.#.#.#.#.###",
+            "#...#...#...###",
+            "###############",
+        ];
+
+        assert_eq!(
+            32 + 31 + 29 + 39 + 25 + 23 + 20 + 19 + 12 + 14 + 12 + 22 + 4 + 3,
+            solve_2(&sample, 50)
+        );
+    }
+
+    #[test]
+    fn day_20_part_02_solution() {
+        let input = include_str!("../../inputs/day_20.txt")
+            .lines()
+            .collect_vec();
+
+        assert_eq!(982_425, solve_2(&input, 100));
     }
 }
