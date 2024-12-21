@@ -5,11 +5,11 @@ use std::fmt::Display;
 use std::ops::Not;
 
 pub fn solve_1(codes: &[&str]) -> u64 {
-    solve(codes, 2)
+    solve(codes, 2 + 1)
 }
 
 pub fn solve_2(codes: &[&str]) -> u64 {
-    solve(codes, 25)
+    solve(codes, 25 + 1)
 }
 
 fn solve(codes: &[&str], nr_robots: u32) -> u64 {
@@ -30,18 +30,9 @@ fn complexity(
     directional: &Keypad,
     cache: &mut FxHashMap<(Vec<Button>, u32), u64>,
 ) -> u64 {
-    let shortest = to_next_layer(&code.chars().map(Button::from).collect_vec(), numeric)
-        .paths
-        .iter()
-        .map(|path| split_sub_paths(path))
-        .map(|sub_paths| {
-            sub_paths
-                .iter()
-                .map(|sub_path| shortest_len(sub_path, nr_robots, directional, cache))
-                .sum::<u64>()
-        })
-        .min()
-        .unwrap();
+    let buttons = code.chars().map(Button::from).collect_vec();
+
+    let shortest = shortest_len(&buttons, nr_robots, numeric, directional, cache);
     let numeric_part = code[..code.len() - 1].parse::<u64>().unwrap();
 
     shortest * numeric_part
@@ -51,6 +42,7 @@ fn shortest_len(
     path: &[Button],
     level: u32,
     keypad: &Keypad,
+    directional: &Keypad,
     cache: &mut FxHashMap<(Vec<Button>, u32), u64>,
 ) -> u64 {
     if cache.contains_key(&(path.to_vec(), level)) {
@@ -60,14 +52,16 @@ fn shortest_len(
     let len = if level == 0 {
         path.len() as u64
     } else {
-        let next_paths = to_next_layer(path, keypad).paths;
-
-        next_paths
+        to_next_layer(path, keypad)
+            .paths
             .iter()
-            .map(|next_path| {
-                split_sub_paths(next_path)
+            .map(|next_path| split_sub_paths(next_path))
+            .map(|sub_paths| {
+                sub_paths
                     .iter()
-                    .map(|sub_path| shortest_len(sub_path, level - 1, keypad, cache))
+                    .map(|sub_path| {
+                        shortest_len(sub_path, level - 1, directional, directional, cache)
+                    })
                     .sum::<u64>()
             })
             .min()
@@ -348,9 +342,7 @@ impl Paths {
         to: Button,
         graph: &FxHashMap<Button, FxHashMap<Button, Button>>,
     ) -> Self {
-        Self::all_paths(from, to, FxHashSet::default(), vec![], graph)
-            .keep_shortest()
-            .keep_shortest_compressed()
+        Self::all_paths(from, to, FxHashSet::default(), vec![], graph).keep_shortest()
     }
 
     // TODO use dijkstra instead
@@ -389,37 +381,6 @@ impl Paths {
             .into_iter()
             .sorted_by_key(|path| path.len())
             .chunk_by(|path| path.len())
-            .into_iter()
-            .map(|(len, group)| (len, group.into_iter().collect_vec()))
-            .min_by_key(|&(len, _)| len)
-            .map(|(_len, paths)| Self { paths })
-            .unwrap()
-    }
-
-    fn keep_shortest_compressed(&self) -> Self {
-        fn compressed_len(path: &[Button]) -> u64 {
-            if path.len() <= 1 {
-                return path.len() as u64;
-            }
-
-            let mut len = 1;
-            let mut prev = path[0];
-
-            for &button in path[1..].iter() {
-                if button != prev {
-                    len += 1;
-                    prev = button;
-                }
-            }
-
-            len
-        }
-
-        self.paths
-            .clone()
-            .into_iter()
-            .sorted_by_key(|path| compressed_len(path))
-            .chunk_by(|path| compressed_len(path))
             .into_iter()
             .map(|(len, group)| (len, group.into_iter().collect_vec()))
             .min_by_key(|&(len, _)| len)
