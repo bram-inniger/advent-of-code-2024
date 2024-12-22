@@ -1,8 +1,8 @@
+use crate::util::graph::Graph;
 use itertools::Itertools;
-use rustc_hash::{FxHashMap, FxHashSet};
-use std::fmt;
+use rustc_hash::FxHashMap;
 use std::fmt::Display;
-use std::ops::Not;
+use std::{fmt, iter};
 
 pub fn solve_1(codes: &[&str]) -> u64 {
     solve(codes, 2 + 1)
@@ -30,7 +30,10 @@ fn complexity(
     directional: &Keypad,
     cache: &mut FxHashMap<(Vec<Button>, u32), u64>,
 ) -> u64 {
-    let buttons = code.chars().map(Button::from).collect_vec();
+    let buttons = code
+        .chars()
+        .map(|button| Button::from(button).unwrap())
+        .collect_vec();
 
     let shortest = shortest_len(&buttons, nr_robots, numeric, directional, cache);
     let numeric_part = code[..code.len() - 1].parse::<u64>().unwrap();
@@ -53,7 +56,6 @@ fn shortest_len(
         path.len() as u64
     } else {
         to_next_layer(path, keypad)
-            .paths
             .iter()
             .map(|next_path| split_sub_paths(next_path))
             .map(|sub_paths| {
@@ -92,7 +94,7 @@ fn split_sub_paths(path: &[Button]) -> Vec<Vec<Button>> {
         .collect_vec()
 }
 
-fn to_next_layer(path: &[Button], keypad: &Keypad) -> Paths {
+fn to_next_layer(path: &[Button], keypad: &Keypad) -> Vec<Vec<Button>> {
     let mut paths = vec![vec![]];
     let mut from = Button::Activate;
 
@@ -109,7 +111,7 @@ fn to_next_layer(path: &[Button], keypad: &Keypad) -> Paths {
         from = *to;
     }
 
-    Paths { paths }
+    paths
 }
 
 #[derive(Debug)]
@@ -118,133 +120,75 @@ struct Keypad {
 }
 
 impl Keypad {
-    pub fn numeric() -> Self {
-        // TODO write a method that generates these, using a 2D grid
+    pub fn numeric() -> Keypad {
         #[rustfmt::skip]
-        let graph: FxHashMap<Button, FxHashMap<Button, Button>> = [
-            (Button::Seven, [
-                    (Button::Eight, Button::Right),
-                    (Button::Four, Button::Down),
-                ].into_iter().collect(),
-            ),
-            (Button::Eight, [
-                    (Button::Seven, Button::Left),
-                    (Button::Nine, Button::Right),
-                    (Button::Five, Button::Down),
-                ].into_iter().collect(),
-            ),
-            (Button::Nine, [
-                    (Button::Eight, Button::Left),
-                    (Button::Six, Button::Down),
-                ].into_iter().collect(),
-            ),
-            (Button::Four, [
-                    (Button::Five, Button::Right),
-                    (Button::Seven, Button::Up),
-                    (Button::One, Button::Down),
-                ].into_iter().collect(),
-            ),
-            (Button::Five, [
-                    (Button::Four, Button::Left),
-                    (Button::Six, Button::Right),
-                    (Button::Eight, Button::Up),
-                    (Button::Two, Button::Down),
-                ].into_iter().collect(),
-            ),
-            (Button::Six, [
-                    (Button::Five, Button::Left),
-                    (Button::Nine, Button::Up),
-                    (Button::Three, Button::Down),
-                ].into_iter().collect(),
-            ),
-            (Button::One, [
-                    (Button::Two, Button::Right),
-                    (Button::Four, Button::Up),
-                ].into_iter().collect(),
-            ),
-            (Button::Two, [
-                    (Button::One, Button::Left),
-                    (Button::Three, Button::Right),
-                    (Button::Five, Button::Up),
-                    (Button::Zero, Button::Down),
-                ].into_iter().collect(),
-            ),
-            (Button::Three, [
-                    (Button::Two, Button::Left),
-                    (Button::Six, Button::Up),
-                    (Button::Activate, Button::Down),
-                ].into_iter().collect(),
-            ),
-            (Button::Zero, [
-                    (Button::Activate, Button::Right),
-                    (Button::Two, Button::Up),
-                ].into_iter().collect(),
-            ),
-            (Button::Activate, [
-                    (Button::Zero, Button::Left),
-                    (Button::Three, Button::Up),
-                ].into_iter().collect(),
-            ),
-        ]
-        .into_iter()
-        .collect();
+        let keypad = vec![
+            vec!['7', '8', '9'],
+            vec!['4', '5', '6'],
+            vec!['1', '2', '3'],
+            vec![' ', '0', 'A'],
+        ];
 
-        Self::new(graph)
+        Self::new(&keypad)
     }
 
-    pub fn directional() -> Self {
-        // TODO write a method that generates these, using a 2D grid
+    pub fn directional() -> Keypad {
         #[rustfmt::skip]
-        let graph: FxHashMap<Button, FxHashMap<Button, Button>> = [
-            (Button::Up, [
-                    (Button::Activate, Button::Right),
-                    (Button::Down, Button::Down),
-                ].into_iter().collect(),
-            ),
-            (Button::Activate, [
-                    (Button::Up, Button::Left),
-                    (Button::Right, Button::Down),
-                ].into_iter().collect(),
-            ),
-            (Button::Left, [
-                    (Button::Down, Button::Right),
-                ].into_iter().collect(),
-            ),
-            (Button::Down, [
-                    (Button::Left, Button::Left),
-                    (Button::Right, Button::Right),
-                    (Button::Up, Button::Up),
-                ].into_iter().collect(),
-            ),
-            (Button::Right, [
-                    (Button::Down, Button::Left),
-                    (Button::Activate, Button::Up),
-                ].into_iter().collect(),
-            ),
-        ]
-        .into_iter()
-        .collect();
+        let keypad = vec![
+            vec![' ', '^', 'A'],
+            vec!['<', 'v', '>']
+        ];
 
-        Self::new(graph)
+        Self::new(&keypad)
     }
+    fn new(keypad: &[Vec<char>]) -> Keypad {
+        fn translate(paths: Vec<Vec<Position>>) -> Vec<Vec<Button>> {
+            paths
+                .iter()
+                .map(|path| {
+                    (1..path.len())
+                        .map(|idx| Button::from_positions(&path[idx - 1], &path[idx]))
+                        .chain(iter::once(Button::Activate))
+                        .collect_vec()
+                })
+                .collect()
+        }
 
-    fn new(graph: FxHashMap<Button, FxHashMap<Button, Button>>) -> Self {
-        let buttons = graph.keys().copied().collect_vec();
+        let keypad: FxHashMap<Position, Button> = (0..keypad.len())
+            .flat_map(|y| {
+                (0..keypad[0].len()).map(move |x| (x as i32, y as i32, Button::from(keypad[y][x])))
+            })
+            .flat_map(|(x, y, btn)| btn.map(|btn| (Position { x, y }, btn)))
+            .collect();
 
-        let shortest_paths = buttons
+        let mut graph = Graph::<Position, u32>::default();
+        keypad
+            .keys()
+            .flat_map(|&node| {
+                node.neighbours()
+                    .iter()
+                    .map(move |&neighbour| (node, neighbour))
+                    .collect_vec()
+            })
+            .filter(|(_, neighbour)| keypad.contains_key(neighbour))
+            .for_each(|(node, neighbour)| graph.add_edge(&node, &neighbour, &1));
+
+        let shortest_paths = keypad
             .iter()
-            .map(|&from| {
-                (
-                    from,
-                    buttons
-                        .iter()
-                        .map(|&to| (to, Paths::shortest_paths(from, to, &graph).paths))
-                        .collect(),
-                )
+            .map(|(from_position, &from_button)| {
+                let paths = keypad
+                    .iter()
+                    .map(|(to_position, &to_button)| {
+                        let paths =
+                            translate(graph.dijkstra(from_position).shortest_paths(to_position));
+                        (to_button, paths)
+                    })
+                    .collect();
+                (from_button, paths)
             })
             .collect();
 
-        Self { shortest_paths }
+        Keypad { shortest_paths }
     }
 }
 
@@ -285,24 +229,35 @@ enum Button {
 }
 
 impl Button {
-    fn from(button: char) -> Self {
+    fn from(button: char) -> Option<Self> {
         match button {
-            '0' => Button::Zero,
-            '1' => Button::One,
-            '2' => Button::Two,
-            '3' => Button::Three,
-            '4' => Button::Four,
-            '5' => Button::Five,
-            '6' => Button::Six,
-            '7' => Button::Seven,
-            '8' => Button::Eight,
-            '9' => Button::Nine,
-            'A' => Button::Activate,
-            '^' => Button::Up,
-            'v' => Button::Down,
-            '<' => Button::Left,
-            '>' => Button::Right,
-            _ => panic!("Invalid button: {}", button),
+            '0' => Some(Button::Zero),
+            '1' => Some(Button::One),
+            '2' => Some(Button::Two),
+            '3' => Some(Button::Three),
+            '4' => Some(Button::Four),
+            '5' => Some(Button::Five),
+            '6' => Some(Button::Six),
+            '7' => Some(Button::Seven),
+            '8' => Some(Button::Eight),
+            '9' => Some(Button::Nine),
+            'A' => Some(Button::Activate),
+            '^' => Some(Button::Up),
+            'v' => Some(Button::Down),
+            '<' => Some(Button::Left),
+            '>' => Some(Button::Right),
+            _ => None,
+        }
+    }
+
+    fn from_positions(from: &Position, to: &Position) -> Self {
+        let delta = (from.x - to.x, from.y - to.y);
+        match delta {
+            (1, 0) => Button::Left,
+            (-1, 0) => Button::Right,
+            (0, 1) => Button::Up,
+            (0, -1) => Button::Down,
+            _ => panic!("Invalid move between positions {:?} and {:?}", from, to),
         }
     }
 }
@@ -331,73 +286,20 @@ impl Display for Button {
     }
 }
 
-#[derive(Debug)]
-struct Paths {
-    paths: Vec<Vec<Button>>,
+#[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
+struct Position {
+    x: i32,
+    y: i32,
 }
 
-impl Paths {
-    pub fn shortest_paths(
-        from: Button,
-        to: Button,
-        graph: &FxHashMap<Button, FxHashMap<Button, Button>>,
-    ) -> Self {
-        Self::all_paths(from, to, FxHashSet::default(), vec![], graph).keep_shortest()
-    }
-
-    // TODO use dijkstra instead
-    fn all_paths(
-        from: Button,
-        to: Button,
-        visited: FxHashSet<Button>,
-        path: Vec<Button>,
-        graph: &FxHashMap<Button, FxHashMap<Button, Button>>,
-    ) -> Self {
-        if from == to {
-            let mut path = path.clone();
-            path.push(Button::Activate);
-            Self { paths: vec![path] }
-        } else {
-            let mut new_visited = visited.clone();
-            new_visited.insert(from);
-
-            let paths = graph[&from]
-                .iter()
-                .filter(|(new_from, _)| visited.contains(new_from).not())
-                .flat_map(|(&new_from, &button)| {
-                    let mut new_path = path.clone();
-                    new_path.push(button);
-
-                    Self::all_paths(new_from, to, new_visited.clone(), new_path, graph).paths
-                })
-                .collect();
-            Self { paths }
-        }
-    }
-
-    fn keep_shortest(&self) -> Self {
-        self.paths
-            .clone()
-            .into_iter()
-            .sorted_by_key(|path| path.len())
-            .chunk_by(|path| path.len())
-            .into_iter()
-            .map(|(len, group)| (len, group.into_iter().collect_vec()))
-            .min_by_key(|&(len, _)| len)
-            .map(|(_len, paths)| Self { paths })
-            .unwrap()
-    }
-}
-
-impl Display for Paths {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let print = self
-            .paths
-            .iter()
-            .map(|path| path.iter().map(ToString::to_string).join(""))
-            .join("\n");
-
-        write!(f, "{}", print)
+impl Position {
+    fn neighbours(&self) -> Vec<Self> {
+        [(1, 0), (-1, 0), (0, 1), (0, -1)]
+            .map(|(dx, dy)| Position {
+                x: self.x + dx,
+                y: self.y + dy,
+            })
+            .to_vec()
     }
 }
 

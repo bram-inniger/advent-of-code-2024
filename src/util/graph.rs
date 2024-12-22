@@ -103,6 +103,9 @@ where
 
     pub fn shortest_paths(&self, to: &N) -> Vec<Vec<N>> {
         self.shortest_paths_helper(to, &[])
+            .into_iter()
+            .map(|path| path.into_iter().rev().collect())
+            .collect()
     }
 
     fn shortest_paths_helper(&self, node: &N, path: &[N]) -> Vec<Vec<N>> {
