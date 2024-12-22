@@ -1,121 +1,36 @@
+use crate::util::graph::Graph;
+use itertools::Itertools;
 use rustc_hash::{FxHashMap, FxHashSet};
-use std::cmp::Ordering;
 use std::collections::VecDeque;
 use std::ops::Not;
 
 pub fn solve_1(maze: &[&str]) -> u32 {
-    let maze = Maze::new(maze);
-    let start = Node {
-        coordinate: maze.start,
-        orientation: Orientation::East,
-    };
-    let end = [
-        Orientation::North,
-        Orientation::East,
-        Orientation::South,
-        Orientation::West,
-    ]
-    .map(|orientation| Node {
-        coordinate: maze.end,
-        orientation,
-    });
-
-    let (distances, _) = dijkstra(&maze, &start);
-    end.iter().map(|e| distances[e]).min().unwrap()
+    let (shortest_distance, _) = solve(maze);
+    shortest_distance
 }
 
 pub fn solve_2(maze: &[&str]) -> usize {
+    let (_, shortest_tiles_count) = solve(maze);
+    shortest_tiles_count
+}
+
+fn solve(maze: &[&str]) -> (u32, usize) {
     let maze = Maze::new(maze);
-    let start = Node {
-        coordinate: maze.start,
-        orientation: Orientation::East,
-    };
+    let (distances, parents) = maze.dijkstra(&maze.start);
 
-    let (distances, parents) = dijkstra(&maze, &start);
+    let shortest_distance = maze.ends.iter().map(|end| distances[end]).min().unwrap();
+    let shortest_tiles_count = maze
+        .ends
+        .iter()
+        .filter(|&n| distances[n] == shortest_distance)
+        .flat_map(|end| shortest_path_tiles(&parents, end))
+        .unique()
+        .count();
 
-    // TODO allow for multiple shortest paths hitting different ends
-    let shortest_end = [
-        Orientation::North,
-        Orientation::East,
-        Orientation::South,
-        Orientation::West,
-    ]
-    .map(|orientation| Node {
-        coordinate: maze.end,
-        orientation,
-    })
-    .into_iter()
-    .min_by_key(|n| distances[n])
-    .unwrap();
-
-    best_paths(&parents, &shortest_end).len()
+    (shortest_distance, shortest_tiles_count)
 }
 
-// TODO make a proper Dijkstra data-agnostic struct and solver
-fn dijkstra(maze: &Maze, start: &Node) -> (FxHashMap<Node, u32>, FxHashMap<Node, Vec<Node>>) {
-    let mut unvisited: FxHashSet<Node> = maze
-        .tiles
-        .iter()
-        .flat_map(|&coordinate| {
-            [
-                Orientation::North,
-                Orientation::East,
-                Orientation::South,
-                Orientation::West,
-            ]
-            .map(|orientation| Node {
-                coordinate,
-                orientation,
-            })
-        })
-        .collect();
-
-    // todo, maybe, make this a BTreeMap instead, popping the smallest element?
-    let mut distances: FxHashMap<Node, u32> = unvisited
-        .iter()
-        .map(|node| {
-            let distance = if node == start { 0 } else { u32::MAX };
-            (*node, distance)
-        })
-        .collect();
-    let mut parents: FxHashMap<Node, Vec<Node>> =
-        unvisited.iter().map(|&node| (node, vec![])).collect();
-
-    loop {
-        let Some((&current, &current_distance)) = distances
-            .iter()
-            .filter(|&(_, &distance)| distance != u32::MAX)
-            .filter(|(node, _)| unvisited.contains(node))
-            .min_by_key(|&(_, distance)| distance)
-        else {
-            return (distances, parents);
-        };
-
-        for (neighbour, neighbour_distance) in current
-            .neighbours()
-            .into_iter()
-            .filter(|(node, _)| unvisited.contains(node))
-        {
-            let old_distance = distances[&neighbour];
-            let new_distance = current_distance + neighbour_distance;
-
-            match old_distance.cmp(&new_distance) {
-                Ordering::Less => {}
-                Ordering::Equal => {
-                    parents.get_mut(&neighbour).unwrap().push(current);
-                }
-                Ordering::Greater => {
-                    distances.insert(neighbour, new_distance);
-                    parents.insert(neighbour, vec![current]);
-                }
-            }
-        }
-
-        unvisited.remove(&current);
-    }
-}
-
-fn best_paths(parents: &FxHashMap<Node, Vec<Node>>, end: &Node) -> FxHashSet<Coordinate> {
+fn shortest_path_tiles(parents: &FxHashMap<Node, Vec<Node>>, end: &Node) -> FxHashSet<Coordinate> {
     let mut visited: FxHashSet<Node> = FxHashSet::default();
     let mut to_visit = VecDeque::new();
     to_visit.push_back(*end);
@@ -135,13 +50,13 @@ fn best_paths(parents: &FxHashMap<Node, Vec<Node>>, end: &Node) -> FxHashSet<Coo
 
 #[derive(Debug)]
 struct Maze {
-    tiles: FxHashSet<Coordinate>,
-    start: Coordinate,
-    end: Coordinate,
+    pub start: Node,
+    pub ends: Vec<Node>,
+    graph: Graph<Node, u32>,
 }
 
 impl Maze {
-    fn new(maze: &[&str]) -> Self {
+    pub fn new(maze: &[&str]) -> Self {
         let tiles: FxHashMap<Coordinate, char> = maze
             .iter()
             .enumerate()
@@ -158,14 +73,55 @@ impl Maze {
             .find(|(_, c)| **c == 'S')
             .map(|(coord, _)| *coord)
             .unwrap();
+        let start = Node {
+            coordinate: start,
+            orientation: Orientation::East,
+        };
+
         let end = tiles
             .iter()
             .find(|(_, c)| **c == 'E')
             .map(|(coord, _)| *coord)
             .unwrap();
-        let tiles = tiles.keys().copied().collect();
+        let ends = [
+            Orientation::North,
+            Orientation::East,
+            Orientation::South,
+            Orientation::West,
+        ]
+        .map(|orientation| Node {
+            coordinate: end,
+            orientation,
+        })
+        .to_vec();
 
-        Self { tiles, start, end }
+        let mut graph = Graph::default();
+        tiles
+            .keys()
+            .flat_map(|&coordinate| {
+                [
+                    Orientation::North,
+                    Orientation::East,
+                    Orientation::South,
+                    Orientation::West,
+                ]
+                .map(move |orientation| Node {
+                    coordinate,
+                    orientation,
+                })
+            })
+            .flat_map(|node| {
+                node.neighbours()
+                    .into_iter()
+                    .map(move |(neighbour, weight)| (node, neighbour, weight))
+            })
+            .for_each(|(node, neighbour, weight)| graph.add_edge(&node, &neighbour, &weight));
+
+        Self { start, ends, graph }
+    }
+
+    pub fn dijkstra(&self, start: &Node) -> (FxHashMap<Node, u32>, FxHashMap<Node, Vec<Node>>) {
+        self.graph.dijkstra(start)
     }
 }
 
@@ -244,17 +200,17 @@ impl Node {
             ),
             (
                 Node {
-                    coordinate: self.coordinate.next(&self.orientation.clockwise()),
+                    coordinate: self.coordinate,
                     orientation: self.orientation.clockwise(),
                 },
-                1_001,
+                1_000,
             ),
             (
                 Node {
-                    coordinate: self.coordinate.next(&self.orientation.counter_clockwise()),
+                    coordinate: self.coordinate,
                     orientation: self.orientation.counter_clockwise(),
                 },
-                1_001,
+                1_000,
             ),
         ]
     }

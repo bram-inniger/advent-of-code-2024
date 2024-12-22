@@ -10,6 +10,7 @@ dependencies = [
  "criterion",
  "itertools 0.13.0",
  "lazy_static",
+ "num-traits",
  "rayon",
  "regex",
  "rustc-hash",
