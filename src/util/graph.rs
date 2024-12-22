@@ -29,7 +29,7 @@ where
         self.edges.entry(to.clone()).or_default();
     }
 
-    pub fn dijkstra(&self, start: &N) -> (FxHashMap<N, W>, FxHashMap<N, Vec<N>>) {
+    pub fn dijkstra(&self, start: &N) -> Dijkstra<N, W> {
         let mut distances: FxHashMap<N, W> = FxHashMap::default();
         let mut parents: FxHashMap<N, Vec<N>> = self
             .edges
@@ -72,7 +72,7 @@ where
             }
         }
 
-        (distances, parents)
+        Dijkstra { distances, parents }
     }
 }
 
@@ -83,5 +83,39 @@ where
 {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[derive(Debug)]
+pub struct Dijkstra<N, W> {
+    distances: FxHashMap<N, W>,
+    parents: FxHashMap<N, Vec<N>>,
+}
+
+impl<N, W> Dijkstra<N, W>
+where
+    N: Ord + Eq + Hash + Clone,
+    W: Copy + Ord + Default + Add<Output = W> + UpperBounded,
+{
+    pub fn distance(&self, node: &N) -> W {
+        self.distances[node]
+    }
+
+    pub fn shortest_paths(&self, to: &N) -> Vec<Vec<N>> {
+        self.shortest_paths_helper(to, &[])
+    }
+
+    fn shortest_paths_helper(&self, node: &N, path: &[N]) -> Vec<Vec<N>> {
+        let mut new_path = path.to_vec();
+        new_path.push(node.clone());
+
+        if self.parents[node].is_empty() {
+            return vec![new_path];
+        }
+
+        self.parents[node]
+            .iter()
+            .flat_map(|parent| self.shortest_paths_helper(parent, &new_path))
+            .collect()
     }
 }

@@ -1,51 +1,40 @@
-use crate::util::graph::Graph;
+use crate::util::graph::{Dijkstra, Graph};
 use itertools::Itertools;
-use rustc_hash::{FxHashMap, FxHashSet};
-use std::collections::VecDeque;
-use std::ops::Not;
+use rustc_hash::FxHashMap;
 
 pub fn solve_1(maze: &[&str]) -> u32 {
-    let (shortest_distance, _) = solve(maze);
-    shortest_distance
+    solve(maze).shortest_distance
 }
 
 pub fn solve_2(maze: &[&str]) -> usize {
-    let (_, shortest_tiles_count) = solve(maze);
-    shortest_tiles_count
+    solve(maze).shortest_tiles
 }
 
-fn solve(maze: &[&str]) -> (u32, usize) {
+fn solve(maze: &[&str]) -> SolvedMaze {
     let maze = Maze::new(maze);
-    let (distances, parents) = maze.dijkstra(&maze.start);
+    let dijkstra = maze.dijkstra(&maze.start);
 
-    let shortest_distance = maze.ends.iter().map(|end| distances[end]).min().unwrap();
-    let shortest_tiles_count = maze
+    let shortest_distance = maze
         .ends
         .iter()
-        .filter(|&n| distances[n] == shortest_distance)
-        .flat_map(|end| shortest_path_tiles(&parents, end))
+        .map(|end| dijkstra.distance(end))
+        .min()
+        .unwrap();
+    let shortest_tiles = maze
+        .ends
+        .iter()
+        .filter(|end| dijkstra.distance(end) == shortest_distance)
+        .map(|end| dijkstra.shortest_paths(end))
+        .flat_map(|paths| paths.into_iter())
+        .flat_map(|path| path.into_iter())
+        .map(|node| node.coordinate)
         .unique()
         .count();
 
-    (shortest_distance, shortest_tiles_count)
-}
-
-fn shortest_path_tiles(parents: &FxHashMap<Node, Vec<Node>>, end: &Node) -> FxHashSet<Coordinate> {
-    let mut visited: FxHashSet<Node> = FxHashSet::default();
-    let mut to_visit = VecDeque::new();
-    to_visit.push_back(*end);
-
-    while let Some(node) = to_visit.pop_front() {
-        parents[&node]
-            .iter()
-            .filter(|parent| visited.contains(parent).not())
-            .for_each(|&parent| {
-                to_visit.push_back(parent);
-            });
-        visited.insert(node);
+    SolvedMaze {
+        shortest_distance,
+        shortest_tiles,
     }
-
-    visited.iter().map(|n| n.coordinate).collect()
 }
 
 #[derive(Debug)]
@@ -120,9 +109,15 @@ impl Maze {
         Self { start, ends, graph }
     }
 
-    pub fn dijkstra(&self, start: &Node) -> (FxHashMap<Node, u32>, FxHashMap<Node, Vec<Node>>) {
+    pub fn dijkstra(&self, start: &Node) -> Dijkstra<Node, u32> {
         self.graph.dijkstra(start)
     }
+}
+
+#[derive(Debug)]
+struct SolvedMaze {
+    shortest_distance: u32,
+    shortest_tiles: usize,
 }
 
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
