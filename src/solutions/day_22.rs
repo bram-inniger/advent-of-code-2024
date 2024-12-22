@@ -1,4 +1,9 @@
-pub fn solve_1(secrets: &[&str]) -> u64 {
+use itertools::Itertools;
+use rayon::iter::IntoParallelRefIterator;
+use rayon::iter::ParallelIterator;
+use rustc_hash::FxHashMap;
+
+pub fn solve_1(secrets: &[&str]) -> i64 {
     secrets
         .iter()
         .map(|secret| Secret::new(secret))
@@ -6,28 +11,67 @@ pub fn solve_1(secrets: &[&str]) -> u64 {
         .sum()
 }
 
+pub fn solve_2(secrets: &[&str]) -> i64 {
+    let all_sequences = secrets
+        .par_iter()
+        .map(|secret| Secret::new(secret))
+        .map(|secret| secret.sequences(2_000))
+        .collect::<Vec<_>>();
+
+    let mut combined_sequences: FxHashMap<[i64; 4], i64> = FxHashMap::default();
+
+    for sequences in all_sequences {
+        for (sequence, bananas) in sequences {
+            *combined_sequences.entry(sequence).or_insert(0) += bananas;
+        }
+    }
+
+    combined_sequences.values().max().copied().unwrap()
+}
+
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 struct Secret {
-    number: u64,
+    number: i64,
 }
 
 impl Secret {
-    fn new(secret: &str) -> Self {
+    pub fn new(secret: &str) -> Self {
         Self {
             number: secret.parse().unwrap(),
         }
     }
 
-    fn predict(&self, time: u32) -> u64 {
+    fn predict(&self, time: i64) -> i64 {
+        self.numbers(time)[time as usize]
+    }
+
+    pub fn sequences(&self, time: i64) -> FxHashMap<[i64; 4], i64> {
+        let secrets = self.numbers(time);
+
+        (4..secrets.len())
+            .map(|idx| {
+                (
+                    [3, 2, 1, 0].map(|d| secrets[idx - d] % 10 - secrets[idx - d - 1] % 10),
+                    secrets[idx] % 10,
+                )
+            })
+            .unique_by(|(sequence, _)| *sequence)
+            .collect()
+    }
+
+    fn numbers(&self, time: i64) -> Vec<i64> {
+        let mut secrets = vec![self.number];
         let mut number = self.number;
 
         for _ in 0..time {
             number = ((number * 64) ^ number) % 16_777_216;
             number = ((number / 32) ^ number) % 16_777_216;
             number = ((number * 2048) ^ number) % 16_777_216;
+
+            secrets.push(number);
         }
 
-        number
+        secrets
     }
 }
 
@@ -57,5 +101,27 @@ mod tests {
             .collect_vec();
 
         assert_eq!(14_726_157_693, solve_1(&input));
+    }
+
+    #[test]
+    fn day_22_part_02_sample() {
+        #[rustfmt::skip]
+        let sample = vec![
+            "1",
+            "2",
+            "3",
+            "2024",
+        ];
+
+        assert_eq!(23, solve_2(&sample));
+    }
+
+    #[test]
+    fn day_22_part_02_solution() {
+        let input = include_str!("../../inputs/day_22.txt")
+            .lines()
+            .collect_vec();
+
+        assert_eq!(1_614, solve_2(&input));
     }
 }
