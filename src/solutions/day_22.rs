@@ -18,7 +18,7 @@ pub fn solve_2(secrets: &[&str]) -> i64 {
         .map(|secret| secret.sequences(2_000))
         .collect::<Vec<_>>();
 
-    let mut combined_sequences: FxHashMap<[i64; 4], i64> = FxHashMap::default();
+    let mut combined_sequences = FxHashMap::default();
 
     for sequences in all_sequences {
         for (sequence, bananas) in sequences {
@@ -45,16 +45,20 @@ impl Secret {
         self.numbers(time)[time as usize]
     }
 
-    pub fn sequences(&self, time: i64) -> FxHashMap<[i64; 4], i64> {
+    #[allow(clippy::identity_op)]
+    pub fn sequences(&self, time: i64) -> FxHashMap<i64, i64> {
+        #[rustfmt::skip]
+        fn sequence_compact(secrets: &[i64], idx: usize) -> i64 {
+                  (secrets[idx - 3] % 10 - secrets[idx - 4] % 10) * 1_000_000
+                + (secrets[idx - 2] % 10 - secrets[idx - 3] % 10) * 10_000
+                + (secrets[idx - 1] % 10 - secrets[idx - 2] % 10) * 100
+                + (secrets[idx - 0] % 10 - secrets[idx - 1] % 10) * 1
+        }
+
         let secrets = self.numbers(time);
 
         (4..secrets.len())
-            .map(|idx| {
-                (
-                    [3, 2, 1, 0].map(|d| secrets[idx - d] % 10 - secrets[idx - d - 1] % 10),
-                    secrets[idx] % 10,
-                )
-            })
+            .map(|idx| (sequence_compact(&secrets, idx), secrets[idx] % 10))
             .unique_by(|(sequence, _)| *sequence)
             .collect()
     }
