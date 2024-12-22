@@ -2,6 +2,7 @@ use itertools::Itertools;
 use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
 use rustc_hash::FxHashMap;
+use std::iter;
 
 pub fn solve_1(secrets: &[&str]) -> i64 {
     secrets
@@ -31,22 +32,22 @@ pub fn solve_2(secrets: &[&str]) -> i64 {
 
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 struct Secret {
-    number: i64,
+    initial: i64,
 }
 
 impl Secret {
     pub fn new(secret: &str) -> Self {
         Self {
-            number: secret.parse().unwrap(),
+            initial: secret.parse().unwrap(),
         }
     }
 
-    fn predict(&self, time: i64) -> i64 {
-        self.numbers(time)[time as usize]
+    fn predict(&self, time: usize) -> i64 {
+        self.numbers(time)[time]
     }
 
     #[allow(clippy::identity_op)]
-    pub fn sequences(&self, time: i64) -> FxHashMap<i64, i64> {
+    pub fn sequences(&self, time: usize) -> FxHashMap<i64, i64> {
         #[rustfmt::skip]
         fn sequence_compact(secrets: &[i64], idx: usize) -> i64 {
                   (secrets[idx - 3] % 10 - secrets[idx - 4] % 10) * 1_000_000
@@ -63,19 +64,15 @@ impl Secret {
             .collect()
     }
 
-    fn numbers(&self, time: i64) -> Vec<i64> {
-        let mut secrets = vec![self.number];
-        let mut number = self.number;
-
-        for _ in 0..time {
-            number = ((number * 64) ^ number) % 16_777_216;
-            number = ((number / 32) ^ number) % 16_777_216;
-            number = ((number * 2048) ^ number) % 16_777_216;
-
-            secrets.push(number);
-        }
-
-        secrets
+    fn numbers(&self, time: usize) -> Vec<i64> {
+        iter::successors(Some(self.initial), |secret| {
+            Some(*secret)
+                .map(|secret| ((secret << 6) ^ secret) & 0xFFFFFF)
+                .map(|secret| ((secret >> 5) ^ secret) & 0xFFFFFF)
+                .map(|secret| ((secret << 11) ^ secret) & 0xFFFFFF)
+        })
+        .take(time + 1)
+        .collect()
     }
 }
 
