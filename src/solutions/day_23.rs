@@ -1,51 +1,71 @@
 use itertools::Itertools;
 use rustc_hash::{FxHashMap, FxHashSet};
-use std::fmt::{Display, Formatter};
 use std::iter;
 use std::ops::Not;
 
 pub fn solve_1(connections: &[&str]) -> usize {
-    let sets = Network::new(connections).sets();
-    let threes = &sets[3];
+    let network = Network::new(connections);
+    let threes = &network.sets()[3];
 
-    threes.iter().filter(|&set| set.starts_with_t()).count()
+    threes
+        .iter()
+        .filter(|&set| set.starts_with_t(&network))
+        .count()
 }
 
 pub fn solve_2(connections: &[&str]) -> String {
-    Network::new(connections)
+    let network = Network::new(connections);
+
+    network
         .sets()
         .last()
         .filter(|sets| sets.len() == 1)
         .unwrap()
         .first()
         .unwrap()
-        .to_string()
+        .pretty_print(&network)
 }
 
 #[derive(Debug)]
 struct Network {
-    connections: FxHashMap<String, FxHashSet<String>>,
+    connections: FxHashMap<usize, FxHashSet<usize>>,
+    id_to_name: FxHashMap<usize, String>,
 }
 
 impl Network {
     fn new(connections: &[&str]) -> Self {
+        let id_to_name: FxHashMap<usize, String> = connections
+            .iter()
+            .flat_map(|connection| connection.split('-'))
+            .unique()
+            .enumerate()
+            .map(|(id, name)| (id, name.to_owned()))
+            .collect();
+        let name_to_id: FxHashMap<String, usize> = id_to_name
+            .iter()
+            .map(|(id, name)| (name.to_owned(), *id))
+            .collect();
+
         let connections = connections
             .iter()
             .flat_map(|connection| {
                 let (from, to) = connection
                     .split_once('-')
-                    .map(|(from, to)| (from.to_string(), to.to_string()))
+                    .map(|(from, to)| (name_to_id[from], name_to_id[to]))
                     .unwrap();
 
-                [(from.clone(), to.clone()), (to, from)]
+                [(from, to), (to, from)]
             })
-            .sorted_by_key(|(from, _)| from.clone())
-            .chunk_by(|(from, _)| from.clone())
+            .sorted_by_key(|&(from, _)| from)
+            .chunk_by(|&(from, _)| from)
             .into_iter()
             .map(|(from, group)| (from, group.into_iter().map(|(_, to)| to).collect()))
             .collect();
 
-        Self { connections }
+        Self {
+            connections,
+            id_to_name,
+        }
     }
 
     fn sets(&self) -> Vec<Vec<Set>> {
@@ -54,7 +74,7 @@ impl Network {
         let mut computers = self
             .connections
             .keys()
-            .map(|computer| Set::new(computer))
+            .map(|computer| Set::new(*computer))
             .collect_vec();
 
         connected_sets.push(computers.clone());
@@ -74,51 +94,56 @@ impl Network {
             connected_sets.push(computers.clone());
         }
     }
+
+    fn translate(&self, id: &usize) -> String {
+        self.id_to_name[id].to_owned()
+    }
 }
 
 #[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 struct Set {
-    computers: Vec<String>,
+    computers: Vec<usize>,
 }
 
 impl Set {
-    fn new(a: &str) -> Self {
+    fn new(single: usize) -> Self {
         Self {
-            computers: iter::once(a.to_owned()).collect(),
+            computers: iter::once(single).collect(),
         }
     }
 
     fn grow(&self, network: &Network) -> Vec<Self> {
-        let set: FxHashSet<_> = self.computers.iter().cloned().collect();
+        let set: FxHashSet<_> = self.computers.iter().copied().collect();
 
         set.iter()
-            .flat_map(|set| network.connections[set].clone())
+            .flat_map(|set| &network.connections[set])
             .filter(|computer| set.contains(computer).not())
-            .map(|candidate| (candidate.clone(), network.connections[&candidate].clone()))
+            .map(|candidate| (candidate, &network.connections[candidate]))
             .filter(|(_, connections)| set.iter().all(|computer| connections.contains(computer)))
             .map(|(candidate, _)| Set {
                 computers: self
                     .computers
                     .iter()
-                    .chain(iter::once(&candidate))
-                    .cloned()
+                    .chain(iter::once(candidate))
+                    .copied()
                     .sorted()
                     .collect(),
             })
             .collect()
     }
 
-    fn starts_with_t(&self) -> bool {
+    fn starts_with_t(&self, network: &Network) -> bool {
         self.computers
             .iter()
-            .any(|computer| computer.starts_with("t"))
+            .any(|computer| network.translate(computer).starts_with("t"))
     }
-}
 
-impl Display for Set {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let print = self.computers.iter().join(",");
-        write!(f, "{}", print)
+    fn pretty_print(&self, network: &Network) -> String {
+        self.computers
+            .iter()
+            .map(|c| network.translate(c))
+            .sorted()
+            .join(",")
     }
 }
 
@@ -169,7 +194,6 @@ mod tests {
         assert_eq!(7, solve_1(&sample));
     }
 
-    #[ignore] // Too slow (but correct), need to rework
     #[test]
     fn day_23_part_01_solution() {
         let input = include_str!("../../inputs/day_23.txt")
@@ -220,7 +244,6 @@ mod tests {
         assert_eq!("co,de,ka,ta", solve_2(&sample));
     }
 
-    #[ignore] // Too slow (but correct), need to rework
     #[test]
     fn day_23_part_02_solution() {
         let input = include_str!("../../inputs/day_23.txt")
