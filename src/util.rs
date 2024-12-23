@@ -1,4 +1,5 @@
 pub mod graph;
+pub mod union_find;
 
 #[allow(dead_code)]
 pub const BASE_10: u32 = 10;
