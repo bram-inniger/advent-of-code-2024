@@ -5,9 +5,7 @@ use std::ops::Not;
 
 pub fn solve_1(connections: &[&str]) -> usize {
     let network = Network::new(connections);
-    let threes = &network.sets()[3];
-
-    threes
+    network.sets()[3 - 1]
         .iter()
         .filter(|&set| set.starts_with_t(&network))
         .count()
@@ -15,7 +13,6 @@ pub fn solve_1(connections: &[&str]) -> usize {
 
 pub fn solve_2(connections: &[&str]) -> String {
     let network = Network::new(connections);
-
     network
         .sets()
         .last()
@@ -53,7 +50,6 @@ impl Network {
                     .split_once('-')
                     .map(|(from, to)| (name_to_id[from], name_to_id[to]))
                     .unwrap();
-
                 [(from, to), (to, from)]
             })
             .sorted_by_key(|&(from, _)| from)
@@ -69,30 +65,25 @@ impl Network {
     }
 
     fn sets(&self) -> Vec<Vec<Set>> {
-        let mut connected_sets = vec![vec![]];
-
-        let mut computers = self
+        let computers = self
             .connections
             .keys()
             .map(|computer| Set::new(*computer))
             .collect_vec();
 
-        connected_sets.push(computers.clone());
-
-        // TODO, re-use iter::successors from Day22
-        loop {
-            computers = computers
+        iter::successors(Some(computers), |computers| {
+            let new_computers = computers
                 .iter()
                 .flat_map(|set| set.grow(self))
                 .unique()
                 .collect_vec();
-
-            if computers.is_empty() {
-                return connected_sets;
+            if new_computers.is_empty() {
+                None
+            } else {
+                Some(new_computers)
             }
-
-            connected_sets.push(computers.clone());
-        }
+        })
+        .collect()
     }
 
     fn translate(&self, id: &usize) -> String {
