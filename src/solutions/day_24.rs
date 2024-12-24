@@ -1,18 +1,15 @@
 use itertools::Itertools;
 use rustc_hash::{FxHashMap, FxHashSet};
+use std::fs::File;
+use std::io;
+use std::io::Write;
 use std::ops::Not;
 
 pub fn solve_1(system: &str) -> u64 {
-    let (wires, gates) = system.split_once("\n\n").unwrap();
-
-    let mut wires: FxHashMap<_, _> = wires
-        .split('\n')
-        .map(|wire| {
-            let (wire, value) = wire.split_once(": ").unwrap();
-            (wire.to_owned(), value.parse::<u32>().unwrap())
-        })
-        .collect();
-    let mut gates: FxHashSet<_> = gates.split('\n').map(Gate::new).collect();
+    let System {
+        mut wires,
+        mut gates,
+    } = System::new(system);
 
     while gates.is_empty().not() {
         let ready = gates
@@ -36,6 +33,33 @@ pub fn solve_1(system: &str) -> u64 {
         .join("");
 
     u64::from_str_radix(&output, 2).unwrap()
+}
+
+pub fn solve_2(_system: &str) -> String {
+    "".to_owned()
+}
+
+#[derive(Debug)]
+struct System {
+    wires: FxHashMap<String, u32>,
+    gates: FxHashSet<Gate>,
+}
+
+impl System {
+    fn new(system: &str) -> Self {
+        let (wires, gates) = system.split_once("\n\n").unwrap();
+
+        let wires: FxHashMap<String, u32> = wires
+            .split('\n')
+            .map(|wire| {
+                let (wire, value) = wire.split_once(": ").unwrap();
+                (wire.to_owned(), value.parse::<u32>().unwrap())
+            })
+            .collect();
+        let gates: FxHashSet<Gate> = gates.split('\n').map(Gate::new).collect();
+
+        Self { wires, gates }
+    }
 }
 
 #[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
@@ -85,6 +109,41 @@ enum GateType {
     And,
     Or,
     Xor,
+}
+
+#[allow(dead_code)]
+fn generate_graphviz_file(system: &str) -> Result<(), io::Error> {
+    let mut file = File::create("graphviz/day_24.dot")?;
+
+    let gates = System::new(system).gates;
+
+    file.write_all("// Create a .png from this file using either: \n".as_bytes())?;
+    file.write_all("// `$ dot -Tpng day_24.dot -o day_24-dot.png`\n".as_bytes())?;
+    file.write_all("// `$ neato -Tpng day_24.dot -o day_24-neato.png`\n\n".as_bytes())?;
+    file.write_all("Digraph G {\n".as_bytes())?;
+
+    for gate in &gates {
+        let shape = match gate.gate_type {
+            GateType::And => "square",
+            GateType::Or => "oval",
+            GateType::Xor => "diamond",
+        };
+        let node = format!("    {} [shape={}]\n", gate.out, shape);
+        file.write_all(node.as_bytes())?;
+    }
+
+    file.write_all("\n".as_bytes())?;
+
+    for gate in &gates {
+        let edge_1 = format!("    {} -> {}\n", gate.in_1, gate.out);
+        let edge_2 = format!("    {} -> {}\n", gate.in_2, gate.out);
+        file.write_all(edge_1.as_bytes())?;
+        file.write_all(edge_2.as_bytes())?;
+    }
+
+    file.write_all("}".as_bytes())?;
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -165,5 +224,32 @@ mod tests {
         let input = include_str!("../../inputs/day_24.txt").trim();
 
         assert_eq!(36_035_961_805_936, solve_1(input));
+    }
+
+    #[ignore]
+    #[test]
+    fn day_24_part_02_sample() {
+        let sample = "\
+                x00: 1\n\
+                x01: 1\n\
+                x02: 1\n\
+                y00: 0\n\
+                y01: 1\n\
+                y02: 0\n\
+                \n\
+                x00 AND y00 -> z00\n\
+                x01 XOR y01 -> z01\n\
+                x02 OR y02 -> z02\
+            ";
+
+        assert_eq!("z00,z01,z02,z05", solve_2(sample));
+    }
+
+    #[ignore]
+    #[test]
+    fn day_24_part_02_solution() {
+        let input = include_str!("../../inputs/day_24.txt").trim();
+
+        assert_eq!("", solve_2(input));
     }
 }
