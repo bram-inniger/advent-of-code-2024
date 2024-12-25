@@ -20,6 +20,10 @@ pub fn solve_1(schematics: &str) -> usize {
         .count()
 }
 
+pub fn solve_2() {
+    // Deliver The Chronicle
+}
+
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 struct Schematic {
     pins: [usize; 5],
@@ -125,5 +129,15 @@ mod tests {
         let input = include_str!("../../inputs/day_25.txt").trim();
 
         assert_eq!(3_223, solve_1(input));
+    }
+
+    #[test]
+    fn day_25_part_02_sample() {
+        solve_2();
+    }
+
+    #[test]
+    fn day_25_part_02_solution() {
+        solve_2();
     }
 }
