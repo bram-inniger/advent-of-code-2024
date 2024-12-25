@@ -35,8 +35,51 @@ pub fn solve_1(system: &str) -> u64 {
     u64::from_str_radix(&output, 2).unwrap()
 }
 
-pub fn solve_2(_system: &str) -> String {
-    "".to_owned()
+// Solution based upon the below discussion and Wikipedia article:
+// https://www.reddit.com/r/adventofcode/comments/1hla5ql/2024_day_24_part_2_a_guide_on_the_idea_behind_the/
+// https://en.wikipedia.org/wiki/Adder_(electronics)#Ripple-carry_adder
+pub fn solve_2(system: &str) -> String {
+    let gates = System::new(system).gates;
+
+    let first_bit = "z00";
+    let last_bit = "z45";
+
+    // Z-gates are always the result of an XOR (apart from the last bit)
+    let z_gate_not_xor = |gate: &Gate| {
+        gate.gate_type != GateType::Xor && gate.sends_output() && gate.out != last_bit
+    };
+
+    // XOR only occurs for the Z-gates or inputs (X or Y), all other intermediate operation are solely AND / OR
+    let intermediate_is_xor = |gate: &Gate| {
+        gate.gate_type == GateType::Xor && gate.sends_output().not() && gate.receives_inputs().not()
+    };
+
+    // XOR gates taking inputs (X or Y) have to be used as an input for another XOR gate (apart from the first bit)
+    let input_xor_leads_not_to_xor = |gate: &Gate| {
+        gate.gate_type == GateType::Xor
+            && gate.receives_inputs()
+            && gate.leads_into(&GateType::Xor, &gates).not()
+            && gate.out != first_bit
+    };
+
+    // AND gate must be used as an input for an OR gate
+    let and_leads_not_to_or = |gate: &Gate| {
+        gate.gate_type == GateType::And
+            && gate.receives_first_inputs().not()
+            && gate.leads_into(&GateType::Or, &gates).not()
+    };
+
+    gates
+        .iter()
+        .filter(|gate| {
+            z_gate_not_xor(gate)
+                || intermediate_is_xor(gate)
+                || input_xor_leads_not_to_xor(gate)
+                || and_leads_not_to_or(gate)
+        })
+        .map(|gate| &gate.out)
+        .sorted()
+        .join(",")
 }
 
 #[derive(Debug)]
@@ -102,6 +145,26 @@ impl Gate {
             GateType::Xor => in_1 ^ in_2,
         }
     }
+
+    fn receives_inputs(&self) -> bool {
+        self.in_1.starts_with('x') && self.in_2.starts_with('y')
+            || self.in_1.starts_with('y') && self.in_2.starts_with('x')
+    }
+
+    fn receives_first_inputs(&self) -> bool {
+        self.in_1 == "x00" || self.in_1 == "y00" || self.in_2 == "x00" || self.in_2 == "y00"
+    }
+
+    fn sends_output(&self) -> bool {
+        self.out.starts_with('z')
+    }
+
+    fn leads_into(&self, gate_type: &GateType, gates: &FxHashSet<Gate>) -> bool {
+        gates.iter().any(|next_gate| {
+            next_gate.gate_type == *gate_type
+                && (next_gate.in_1 == self.out || next_gate.in_2 == self.out)
+        })
+    }
 }
 
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
@@ -128,7 +191,7 @@ fn generate_graphviz_file(system: &str) -> Result<(), io::Error> {
             GateType::Or => "oval",
             GateType::Xor => "diamond",
         };
-        let node = format!("    {} [shape={}]\n", gate.out, shape);
+        let node = format!("    {} [shape=\"{}\"]\n", gate.out, shape);
         file.write_all(node.as_bytes())?;
     }
 
@@ -139,6 +202,16 @@ fn generate_graphviz_file(system: &str) -> Result<(), io::Error> {
         let edge_2 = format!("    {} -> {}\n", gate.in_2, gate.out);
         file.write_all(edge_1.as_bytes())?;
         file.write_all(edge_2.as_bytes())?;
+    }
+
+    file.write_all("\n".as_bytes())?;
+    file.write_all("    // Solution found in `solve_2()`: \n".as_bytes())?;
+
+    // Found by `solve_2()`
+    let solution = "jqf,mdd,skh,wpd,wts,z11,z19,z37";
+    for swapped_wire in solution.split(',') {
+        let swapped_wire = format!("    {} [color=\"red\"]\n", swapped_wire);
+        file.write_all(swapped_wire.as_bytes())?;
     }
 
     file.write_all("}".as_bytes())?;
@@ -226,30 +299,15 @@ mod tests {
         assert_eq!(36_035_961_805_936, solve_1(input));
     }
 
-    #[ignore]
     #[test]
     fn day_24_part_02_sample() {
-        let sample = "\
-                x00: 1\n\
-                x01: 1\n\
-                x02: 1\n\
-                y00: 0\n\
-                y01: 1\n\
-                y02: 0\n\
-                \n\
-                x00 AND y00 -> z00\n\
-                x01 XOR y01 -> z01\n\
-                x02 OR y02 -> z02\
-            ";
-
-        assert_eq!("z00,z01,z02,z05", solve_2(sample));
+        // No sample input provided
     }
 
-    #[ignore]
     #[test]
     fn day_24_part_02_solution() {
         let input = include_str!("../../inputs/day_24.txt").trim();
 
-        assert_eq!("", solve_2(input));
+        assert_eq!("jqf,mdd,skh,wpd,wts,z11,z19,z37", solve_2(input));
     }
 }
