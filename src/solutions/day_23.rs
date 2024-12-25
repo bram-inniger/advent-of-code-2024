@@ -1,3 +1,4 @@
+use crate::util::clique::Clique;
 use itertools::Itertools;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::iter;
@@ -5,7 +6,7 @@ use std::ops::Not;
 
 pub fn solve_1(connections: &[&str]) -> usize {
     let network = Network::new(connections);
-    network.sets()[3 - 1]
+    network.sets(3)[3 - 1]
         .iter()
         .filter(|&set| set.starts_with_t(&network))
         .count()
@@ -13,14 +14,13 @@ pub fn solve_1(connections: &[&str]) -> usize {
 
 pub fn solve_2(connections: &[&str]) -> String {
     let network = Network::new(connections);
-    network
-        .sets()
-        .last()
-        .filter(|sets| sets.len() == 1)
+
+    Clique::new(&network.connections)
+        .max_cliques()
+        .iter()
+        .max_by_key(|set| set.len())
+        .map(|set| set.iter().map(|c| network.translate(c)).sorted().join(","))
         .unwrap()
-        .first()
-        .unwrap()
-        .pretty_print(&network)
 }
 
 #[derive(Debug)]
@@ -64,7 +64,7 @@ impl Network {
         }
     }
 
-    fn sets(&self) -> Vec<Vec<Set>> {
+    fn sets(&self, max_size: usize) -> Vec<Vec<Set>> {
         let computers = self
             .connections
             .keys()
@@ -77,7 +77,7 @@ impl Network {
                 .flat_map(|set| set.grow(self))
                 .unique()
                 .collect_vec();
-            if new_computers.is_empty() {
+            if new_computers.is_empty() || computers[0].computers.len() >= max_size {
                 None
             } else {
                 Some(new_computers)
@@ -127,14 +127,6 @@ impl Set {
         self.computers
             .iter()
             .any(|computer| network.translate(computer).starts_with("t"))
-    }
-
-    fn pretty_print(&self, network: &Network) -> String {
-        self.computers
-            .iter()
-            .map(|c| network.translate(c))
-            .sorted()
-            .join(",")
     }
 }
 
