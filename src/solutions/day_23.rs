@@ -1,14 +1,17 @@
 use crate::util::clique::Clique;
 use itertools::Itertools;
 use rustc_hash::{FxHashMap, FxHashSet};
-use std::iter;
-use std::ops::Not;
 
 pub fn solve_1(connections: &[&str]) -> usize {
     let network = Network::new(connections);
-    network.sets(3)[3 - 1]
+
+    Clique::new(&network.connections)
+        .cliques(Some(3))
         .iter()
-        .filter(|&set| set.starts_with_t(&network))
+        .filter(|set| {
+            set.iter()
+                .any(|computer| network.translate(computer).starts_with("t"))
+        })
         .count()
 }
 
@@ -16,7 +19,7 @@ pub fn solve_2(connections: &[&str]) -> String {
     let network = Network::new(connections);
 
     Clique::new(&network.connections)
-        .max_cliques()
+        .cliques(None)
         .iter()
         .max_by_key(|set| set.len())
         .map(|set| set.iter().map(|c| network.translate(c)).sorted().join(","))
@@ -64,69 +67,8 @@ impl Network {
         }
     }
 
-    fn sets(&self, max_size: usize) -> Vec<Vec<Set>> {
-        let computers = self
-            .connections
-            .keys()
-            .map(|computer| Set::new(*computer))
-            .collect_vec();
-
-        iter::successors(Some(computers), |computers| {
-            let new_computers = computers
-                .iter()
-                .flat_map(|set| set.grow(self))
-                .unique()
-                .collect_vec();
-            if new_computers.is_empty() || computers[0].computers.len() >= max_size {
-                None
-            } else {
-                Some(new_computers)
-            }
-        })
-        .collect()
-    }
-
     fn translate(&self, id: &usize) -> String {
         self.id_to_name[id].to_owned()
-    }
-}
-
-#[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
-struct Set {
-    computers: Vec<usize>,
-}
-
-impl Set {
-    fn new(single: usize) -> Self {
-        Self {
-            computers: iter::once(single).collect(),
-        }
-    }
-
-    fn grow(&self, network: &Network) -> Vec<Self> {
-        let set: FxHashSet<_> = self.computers.iter().copied().collect();
-
-        set.iter()
-            .flat_map(|set| &network.connections[set])
-            .filter(|computer| set.contains(computer).not())
-            .map(|candidate| (candidate, &network.connections[candidate]))
-            .filter(|(_, connections)| set.iter().all(|computer| connections.contains(computer)))
-            .map(|(candidate, _)| Set {
-                computers: self
-                    .computers
-                    .iter()
-                    .chain(iter::once(candidate))
-                    .copied()
-                    .sorted()
-                    .collect(),
-            })
-            .collect()
-    }
-
-    fn starts_with_t(&self, network: &Network) -> bool {
-        self.computers
-            .iter()
-            .any(|computer| network.translate(computer).starts_with("t"))
     }
 }
 
